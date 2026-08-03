@@ -1,0 +1,27 @@
+modLoader="javafml"
+loaderVersion="[43,)"
+license="All rights reserved"
+
+[[mods]]
+modId="story_engine"
+version="0.1.0-quest-stage1"
+displayName="Story Engine - Quest System"
+authors="Lorikowka"
+description='''
+Модуль системы квестов для сюжетного движка Story Engine.
+Этап 1: главный класс, POJO/QuestManager, командный интерфейс /quest.
+'''
+
+[[dependencies.story_engine]]
+    modId="forge"
+    mandatory=true
+    versionRange="[43,)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.story_engine]]
+    modId="minecraft"
+    mandatory=true
+    versionRange="[1.19.2,1.20)"
+    ordering="NONE"
+    side="BOTH"
