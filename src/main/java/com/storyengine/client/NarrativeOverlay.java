@@ -21,44 +21,33 @@ import net.minecraftforge.fml.common.Mod;
 import java.util.List;
 
 /**
- * Рендерит текущее сообщение сюжетного чата по центру-низу экрана.
+ * Рендерит текущее сообщение сюжетного чата по центру-низу экрана
+ * (со сдвигом чуть вправо), с тёмной подложкой под иконкой/именем/текстом.
+ * Подложка подстраивается под фактическую ширину текста, а не занимает
+ * фиксированную ширину. Тикает NarrativeChatManager, чтобы двигать эффект
+ * печатной машинки.
  *
- * Сюжетный чат - интерфейс ТОЛЬКО для чтения: он наполняется исключительно
- * пакетом S2CStoryChatPacket (команда /storytell). Перехват ванильного чата
- * (ClientChatReceivedEvent) отключён - обычные сообщения игроков в сюжетный
- * оверлей не попадают; поле ввода в NarrativeLogScreen также убрано.
- *
- * Окно подложки имеет фиксированную ширину, текст переносится в пределах
- * симметричных полей, всё содержимое (иконка, [Имя], строки текста)
- * центрировано по горизонтали и вертикали. Оформление - стилизованная
- * панель в едином стиле мода (текстура рамки как у меню квестов).
+ * Обычные сообщения игроков перехватом не затрагиваются - они уходят
+ * в ванильный чат; сюжетный оверлей наполняется только пакетом
+ * S2CStoryChatPacket (команда /storytell).
  */
 @Mod.EventBusSubscriber(modid = StoryEngineMod.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
 public final class NarrativeOverlay {
 
-    /** Текстура панели в едином стиле мода - та же, что у меню квестов. */
-    private static final ResourceLocation PANEL_TEXTURE =
-            new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/quest_menu.png");
-    private static final int TEXTURE_SIZE = 256;
-
-    /** Фиксированная ширина окна подложки - текст не может растянуть её. */
-    private static final int BOX_WIDTH = 300;
-    /** Внутренний отступ контента от краёв окна (симметрично слева/справа). */
-    private static final int PADDING = 10;
-    /** Отступ тёмной заливки от края текстурированной рамки. */
-    private static final int INNER_FILL_INSET = 4;
-    /** Отступ рамки от нижнего края экрана. */
-    private static final int BOTTOM_OFFSET = 60;
-
+    private static final int ICON_SIZE = 24;
+    private static final int ICON_GAP = 8;
+    /** Максимальная ширина текста ДО переноса строк - не ширина всего блока. */
+    private static final int TEXT_WRAP_WIDTH = 260;
+    /** Насколько сдвигаем блок вправо от идеального центра экрана. */
+    private static final int RIGHT_SHIFT = 30;
+    private static final int PADDING = 6;
     private static final int LINE_HEIGHT = 10;
-    /** Вертикальный зазор между блоками: иконка -> имя -> текст. */
-    private static final int BLOCK_GAP = 4;
-    private static final int ICON_SIZE = 16;
-    /** Минимальная высота контентной зоны - чтобы окно не схлопывалось. */
-    private static final int MIN_CONTENT_HEIGHT = 24;
+    private static final int NAME_LINE_HEIGHT = 12;
+    /** Минимальная ширина текстовой части блока, чтобы он не схлопывался на короткой строке. */
+    private static final int MIN_TEXT_WIDTH = 24;
 
     private static final int TEXT_COLOR = 0xFFFFFF;
-    private static final int INNER_FILL_COLOR = 0xCC202020;
+    private static final int BACKGROUND_COLOR = 0xB0101010;
 
     private NarrativeOverlay() {
     }
@@ -74,18 +63,15 @@ public final class NarrativeOverlay {
         NarrativeChatManager.tick();
     }
 
-    /*
-     * Перехват ClientChatReceivedEvent полностью убран: обычные сообщения
-     * игроков уходят в ванильный чат и больше не дублируются в очередь
-     * NarrativeChatManager / сюжетный оверлей.
-     */
-
     @SubscribeEvent
     public static void onRenderOverlay(RenderGuiOverlayEvent.Post event) {
+        // HOTBAR рендерится каждый кадр ровно один раз - используем как якорь,
+        // чтобы не рисовать сообщение по разу на каждый из overlay'ев подряд.
         if (event.getOverlay() != VanillaGuiOverlay.HOTBAR.type()) {
             return;
         }
         if (Minecraft.getInstance().screen != null) {
+            // Не рисуем поверх открытых экранов (инвентарь, меню квестов и т.п.)
             return;
         }
 
@@ -105,77 +91,67 @@ public final class NarrativeOverlay {
         int screenHeight = window.getGuiScaledHeight();
 
         ResourceLocation icon = DynamicHeadManager.getOrLoad(message.getIconId());
-        String rawSpeaker = message.getSpeaker() == null ? "" : message.getSpeaker().trim();
-        String speaker = rawSpeaker.isEmpty() ? "" : "[" + rawSpeaker + "]";
+        String speaker = message.getSpeaker() == null ? "" : message.getSpeaker();
+        int iconAreaWidth = icon != null ? ICON_SIZE + ICON_GAP : 0;
 
-        boolean hasIcon = icon != null;
-        boolean hasName = !speaker.isBlank();
+        Component fullText = message.getText();
+        List<FormattedCharSequence> fullLines = font.split(fullText, TEXT_WRAP_WIDTH);
 
-        // Ширина переноса = фиксированная ширина окна минус два симметричных поля.
-        int wrapWidth = BOX_WIDTH - PADDING * 2;
+        // Размер подложки считаем по ПОЛНОМУ тексту, а не по текущему кадру
+        // печатной машинки - иначе рамка растёт/дёргается каждый тик по мере
+        // печати. Сам эффект печати анимирует только то, что рисуется внутри
+        // уже стабильного по размеру блока.
+        int textContentWidth = speaker.isBlank() ? 0 : font.width(speaker);
+        for (FormattedCharSequence line : fullLines) {
+            textContentWidth = Math.max(textContentWidth, font.width(line));
+        }
+        textContentWidth = Math.max(textContentWidth, MIN_TEXT_WIDTH);
 
-        // Габариты окна считаются по ПОЛНОМУ тексту, поэтому во время анимации
-        // печати окно не "дышит"; печатаемая часть центрируется внутри готовых границ.
-        List<FormattedCharSequence> fullLines = font.split(message.getText(), wrapWidth);
+        int boxWidth = iconAreaWidth + textContentWidth + PADDING * 2;
+        int boxLeft = screenWidth / 2 - boxWidth / 2 + RIGHT_SHIFT;
+        int textX = boxLeft + PADDING + iconAreaWidth;
 
-        int gapsCount = (hasIcon ? 1 : 0) + (hasName ? 1 : 0);
-        int stackHeight = (hasIcon ? ICON_SIZE + BLOCK_GAP : 0)
-                + (hasName ? font.lineHeight + BLOCK_GAP : 0)
-                + Math.max(1, fullLines.size()) * LINE_HEIGHT;
-        int contentHeight = Math.max(MIN_CONTENT_HEIGHT, stackHeight);
+        // Центр-низ экрана: Y = высота экрана - 60, как задано в ТЗ.
+        int baseY = screenHeight - 60;
 
-        int boxWidth = BOX_WIDTH;
-        int boxHeight = PADDING * 2 + contentHeight;
-        int boxLeft = screenWidth / 2 - boxWidth / 2;
-        int boxTop = screenHeight - BOTTOM_OFFSET - boxHeight;
-        int boxBottom = boxTop + boxHeight;
-        int centerX = screenWidth / 2;
+        int nameHeight = speaker.isBlank() ? 0 : NAME_LINE_HEIGHT;
+        int textHeight = fullLines.size() * LINE_HEIGHT;
+        int contentHeight = Math.max(icon != null ? ICON_SIZE : 0, nameHeight + textHeight);
 
-        // 1. Стилизованная панель: рамка в едином стиле мода + затемнение изнутри.
-        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
-        RenderSystem.setShaderTexture(0, PANEL_TEXTURE);
-        TextureBlitHelper.blitStretched(poseStack, boxLeft, boxTop, boxWidth, boxHeight, TEXTURE_SIZE);
-        TextureBlitHelper.fillBox(poseStack,
-                boxLeft + INNER_FILL_INSET, boxTop + INNER_FILL_INSET,
-                boxLeft + boxWidth - INNER_FILL_INSET, boxBottom - INNER_FILL_INSET,
-                INNER_FILL_COLOR);
+        int iconTop = baseY - ICON_SIZE + 8;
+        int boxTop = iconTop - PADDING;
+        int boxBottom = boxTop + contentHeight + PADDING * 2;
 
-        // Контентная зона: весь стек вертикально отцентрирован внутри окна.
-        int contentTop = boxTop + PADDING + (contentHeight - stackHeight) / 2;
+        // Тёмная подложка под всем блоком (иконка + имя + текст), размер под контент.
+        TextureBlitHelper.fillBox(poseStack, boxLeft, boxTop, boxLeft + boxWidth, boxBottom, BACKGROUND_COLOR);
 
-        int cursorY = contentTop;
-
-        // 2. Иконка - строго по центру горизонтали.
-        if (hasIcon) {
+        if (icon != null) {
             RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
             RenderSystem.setShaderTexture(0, icon);
-            TextureBlitHelper.blitFull(poseStack, centerX - ICON_SIZE / 2, cursorY, ICON_SIZE, ICON_SIZE);
-            cursorY += ICON_SIZE + BLOCK_GAP;
+            TextureBlitHelper.blitFull(poseStack, boxLeft + PADDING, iconTop, ICON_SIZE, ICON_SIZE);
         }
 
-        // 3. Имя автора в скобках [Имя] - строго по центру горизонтали.
-        if (hasName) {
-            int nameX = centerX - font.width(speaker) / 2;
-            font.drawShadow(poseStack, speaker, nameX, cursorY, message.getNameColor());
-            cursorY += font.lineHeight + BLOCK_GAP;
+        int lineY = boxTop + PADDING;
+        if (!speaker.isBlank()) {
+            font.drawShadow(poseStack, speaker, textX, lineY, message.getNameColor());
+            lineY += NAME_LINE_HEIGHT;
         }
-
-        // 4. Строки текста - каждая по центру горизонтали, блок целиком
-        //    отцентрирован по вертикали в пределах своей зоны.
-        Component visibleText = buildVisibleText(message.getText());
-        List<FormattedCharSequence> visibleLines = font.split(visibleText, wrapWidth);
-
-        int fullTextHeight = Math.max(1, fullLines.size()) * LINE_HEIGHT;
-        int visibleTextHeight = Math.max(1, visibleLines.size()) * LINE_HEIGHT;
-        int lineY = cursorY + (fullTextHeight - visibleTextHeight) / 2;
-
+        Component visibleText = buildVisibleText(fullText);
+        List<FormattedCharSequence> visibleLines = font.split(visibleText, TEXT_WRAP_WIDTH);
         for (FormattedCharSequence line : visibleLines) {
-            int lineX = centerX - font.width(line) / 2;
-            font.drawShadow(poseStack, line, lineX, lineY, TEXT_COLOR);
+            font.drawShadow(poseStack, line, textX, lineY, TEXT_COLOR);
             lineY += LINE_HEIGHT;
         }
     }
 
+    /**
+     * Возвращает текст, обрезанный под текущее число видимых символов
+     * (эффект печатной машинки). Пока строка печатается, форматирование
+     * упрощается до единого стиля корневого компонента - посимвольно
+     * сохранять несколько цветовых "прогонов" внутри Component в 1.19.2
+     * без специального API накладно, а после полной отрисовки показывается
+     * оригинальный Component целиком, со всем форматированием как в /tellraw.
+     */
     private static Component buildVisibleText(Component full) {
         if (NarrativeChatManager.isFullyRevealed()) {
             return full;

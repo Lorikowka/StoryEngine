@@ -19,14 +19,6 @@ public final class TextureBlitHelper extends GuiComponent {
         blit(poseStack, x, y, 0, 0, width, height, width, height);
     }
 
-    /**
-     * Рисует всю квадратную текстуру, растянутую в прямоугольник (x, y, width, height)
-     * - так же, как панель меню квестов в QuestScreen.drawPanel.
-     */
-    public static void blitStretched(PoseStack poseStack, int x, int y, int width, int height, int textureSize) {
-        blit(poseStack, x, y, width, height, 0.0F, 0.0F, textureSize, textureSize, textureSize, textureSize);
-    }
-
     /** Заливка прямоугольника сплошным/полупрозрачным цветом (ARGB, как в fill()). */
     public static void fillBox(PoseStack poseStack, int x1, int y1, int x2, int y2, int argbColor) {
         fill(poseStack, x1, y1, x2, y2, argbColor);

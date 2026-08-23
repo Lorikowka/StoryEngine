@@ -114,29 +114,41 @@ public class NarrativeLogScreen extends Screen {
                 continue; // ниже видимой области (проскроллено вниз) - пропускаем
             }
 
-            drawEntry(poseStack, message, panelLeft + 8, cursorY, textAreaWidth);
+            drawEntry(poseStack, message, cursorY, textAreaWidth);
         }
     }
 
-    private void drawEntry(PoseStack poseStack, NarrativeMessage message, int x, int y, int textAreaWidth) {
+    private void drawEntry(PoseStack poseStack, NarrativeMessage message, int y, int textAreaWidth) {
         ResourceLocation icon = DynamicHeadManager.getOrLoad(message.getIconId());
-        int textX = x;
+        String speaker = message.getSpeaker() == null ? "" : message.getSpeaker();
+
+        List<FormattedCharSequence> lines = this.font.split(message.getText(), Math.max(20, textAreaWidth));
+        int iconAreaWidth = icon != null ? ICON_SIZE + 8 : 0;
+        int textContentWidth = speaker.isBlank() ? 0 : this.font.width(speaker);
+        for (FormattedCharSequence line : lines) {
+            textContentWidth = Math.max(textContentWidth, this.font.width(line));
+        }
+
+        // Блок сообщения центрируется по ширине панели, но не вылезает
+        // за левый отступ панели.
+        int panelWidth = this.width - MARGIN * 2;
+        int panelCenter = MARGIN + panelWidth / 2;
+        int x = Math.max(MARGIN + 8, panelCenter - (iconAreaWidth + textContentWidth) / 2);
+
+        int textX = x + iconAreaWidth;
 
         if (icon != null) {
             RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
             RenderSystem.setShaderTexture(0, icon);
             TextureBlitHelper.blitFull(poseStack, x, y, ICON_SIZE, ICON_SIZE);
-            textX = x + ICON_SIZE + 8;
         }
 
-        String speaker = message.getSpeaker() == null ? "" : message.getSpeaker();
         int lineY = y;
         if (!speaker.isBlank()) {
             this.font.drawShadow(poseStack, speaker, textX, lineY, message.getNameColor());
             lineY += NAME_LINE_HEIGHT;
         }
 
-        List<FormattedCharSequence> lines = this.font.split(message.getText(), Math.max(20, textAreaWidth));
         for (FormattedCharSequence line : lines) {
             this.font.drawShadow(poseStack, line, textX, lineY, 0xFFFFFF);
             lineY += LINE_HEIGHT;
