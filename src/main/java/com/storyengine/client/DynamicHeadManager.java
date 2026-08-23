@@ -25,11 +25,15 @@ import java.util.Set;
  * TextureManager клиента. Только клиентская сторона.
  *
  * Использование: DynamicHeadManager.getOrLoad("old_man") -> ResourceLocation
- * зарегистрированной текстуры (или null, если иконки нет/она "none").
+ * зарегистрированной текстуры (или DEFAULT_ICON, если иконки нет/она "none"/не найдена).
  */
 public final class DynamicHeadManager {
 
     private static final Logger LOGGER = LogUtils.getLogger();
+
+    /** Текстура-заглушка по умолчанию из ресурсов мода. */
+    public static final ResourceLocation DEFAULT_ICON =
+            new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/default_head.png");
 
     private static final Map<String, ResourceLocation> LOADED = new HashMap<>();
     private static final Set<String> MISSING = new HashSet<>();
@@ -39,13 +43,13 @@ public final class DynamicHeadManager {
 
     /**
      * Возвращает ResourceLocation зарегистрированной текстуры для указанного
-     * iconId, либо null, если иконка "none"/пустая, либо файл не найден/битый.
+     * iconId, либо DEFAULT_ICON, если иконка "none"/пустая, либо файл не найден/битый.
      * Результат (в т.ч. отрицательный) кэшируется, чтобы не читать диск
      * повторно на каждый кадр отрисовки.
      */
     public static ResourceLocation getOrLoad(String iconId) {
         if (iconId == null || iconId.isBlank() || "none".equalsIgnoreCase(iconId)) {
-            return null;
+            return DEFAULT_ICON;
         }
 
         String key = iconId.toLowerCase(Locale.ROOT);
@@ -55,14 +59,14 @@ public final class DynamicHeadManager {
             return cached;
         }
         if (MISSING.contains(key)) {
-            return null;
+            return DEFAULT_ICON;
         }
 
         Path file = getHeadsDirectory().resolve(key + ".png");
         if (!Files.isRegularFile(file)) {
             LOGGER.warn("[StoryEngine] Иконка '{}' не найдена: {}", key, file);
             MISSING.add(key);
-            return null;
+            return DEFAULT_ICON;
         }
 
         try (InputStream stream = Files.newInputStream(file)) {
@@ -73,11 +77,9 @@ public final class DynamicHeadManager {
             LOADED.put(key, location);
             return location;
         } catch (IOException | RuntimeException e) {
-            // RuntimeException тут в т.ч. ловит некорректный ResourceLocation
-            // (запрещённые символы в имени файла) - не должно валить клиент.
             LOGGER.error("[StoryEngine] Не удалось загрузить иконку '{}' из {}", key, file, e);
             MISSING.add(key);
-            return null;
+            return DEFAULT_ICON;
         }
     }
 

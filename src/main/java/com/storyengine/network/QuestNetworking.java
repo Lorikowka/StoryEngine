@@ -2,9 +2,15 @@ package com.storyengine.network;
 
 import com.storyengine.StoryEngineMod;
 import com.storyengine.player.PlayerQuestDataCapability;
+import com.storyengine.quest.BlockBreakQuestTask;
+import com.storyengine.quest.ItemQuestTask;
+import com.storyengine.quest.KillEntityQuestTask;
+import com.storyengine.quest.LocationQuestTask;
+import com.storyengine.quest.ManualQuestTask;
 import com.storyengine.quest.QuestData;
 import com.storyengine.quest.QuestProgressTracker;
 import com.storyengine.quest.QuestStatus;
+import com.storyengine.quest.QuestTask;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
@@ -32,6 +38,8 @@ public final class QuestNetworking {
     );
 
     private static int packetId = 0;
+    // Id 2 и 3 заняты в NarrativeNetworking.java (тот же CHANNEL) - см. тот класс.
+    private static final int TOAST_PACKET_ID = 4;
 
     private QuestNetworking() {
     }
@@ -39,6 +47,7 @@ public final class QuestNetworking {
     public static void register() {
         CHANNEL.registerMessage(packetId++, S2CSyncQuestDataPacket.class, S2CSyncQuestDataPacket::encode, S2CSyncQuestDataPacket::decode, S2CSyncQuestDataPacket::handle);
         CHANNEL.registerMessage(packetId++, S2CQuestStatusMessagePacket.class, S2CQuestStatusMessagePacket::encode, S2CQuestStatusMessagePacket::decode, S2CQuestStatusMessagePacket::handle);
+        CHANNEL.registerMessage(TOAST_PACKET_ID, S2CQuestToastPacket.class, S2CQuestToastPacket::encode, S2CQuestToastPacket::decode, S2CQuestToastPacket::handle);
     }
 
     public static void sendQuestStatusMessage(ServerPlayer player, String text) {
@@ -46,6 +55,20 @@ public final class QuestNetworking {
             return;
         }
         CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new S2CQuestStatusMessagePacket(text));
+        sendToast(player, "Квест", text);
+    }
+
+    /** Тост одному игроку (например, из /quest complete/fail/task complete). */
+    public static void sendToast(ServerPlayer player, String title, String text) {
+        if (player == null || player.level.isClientSide || text == null || text.isBlank()) {
+            return;
+        }
+        CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new S2CQuestToastPacket(title, text));
+    }
+
+    /** Тост всем игрокам онлайн сразу (используется /quest notify). */
+    public static void sendToastToAll(String title, String text) {
+        CHANNEL.send(PacketDistributor.ALL.noArg(), new S2CQuestToastPacket(title, text));
     }
 
     public static void syncToPlayer(ServerPlayer player) {
@@ -94,6 +117,35 @@ public final class QuestNetworking {
         }
     }
 
+    public static final class S2CQuestToastPacket {
+        public final String title;
+        public final String text;
+
+        public S2CQuestToastPacket(String title, String text) {
+            this.title = title;
+            this.text = text;
+        }
+
+        public static void encode(S2CQuestToastPacket packet, FriendlyByteBuf buffer) {
+            buffer.writeUtf(packet.title == null ? "" : packet.title);
+            buffer.writeUtf(packet.text == null ? "" : packet.text);
+        }
+
+        public static S2CQuestToastPacket decode(FriendlyByteBuf buffer) {
+            return new S2CQuestToastPacket(buffer.readUtf(), buffer.readUtf());
+        }
+
+        public static void handle(S2CQuestToastPacket packet, Supplier<net.minecraftforge.network.NetworkEvent.Context> contextSupplier) {
+            net.minecraftforge.network.NetworkEvent.Context context = contextSupplier.get();
+            context.enqueueWork(() -> {
+                if (context.getDirection() == NetworkDirection.PLAY_TO_CLIENT) {
+                    com.storyengine.client.QuestToastOverlay.add(packet.title, packet.text);
+                }
+            });
+            context.setPacketHandled(true);
+        }
+    }
+
     public static final class S2CSyncQuestDataPacket {
         public final Map<String, QuestStatus> statuses;
         public final Map<String, List<String>> completedTasks;
@@ -136,10 +188,8 @@ public final class QuestNetworking {
                 buffer.writeUtf(quest.getTitle());
                 buffer.writeUtf(quest.getDescription());
                 buffer.writeInt(quest.getTasks().size());
-                for (var task : quest.getTasks()) {
-                    buffer.writeUtf(task.getId());
-                    buffer.writeUtf(task.getTitle());
-                    buffer.writeUtf(task.getDescription());
+                for (QuestTask task : quest.getTasks()) {
+                    encodeTask(buffer, task);
                 }
             }
         }
@@ -181,9 +231,9 @@ public final class QuestNetworking {
                 quest.setTitle(buffer.readUtf());
                 quest.setDescription(buffer.readUtf());
                 int taskSize = buffer.readInt();
-                List<com.storyengine.quest.QuestTask> tasks = new ArrayList<>();
+                List<QuestTask> tasks = new ArrayList<>();
                 for (int j = 0; j < taskSize; j++) {
-                    tasks.add(new com.storyengine.quest.QuestTask(buffer.readUtf(), buffer.readUtf(), buffer.readUtf()));
+                    tasks.add(decodeTask(buffer));
                 }
                 quest.setTasks(tasks);
                 questData.add(quest);
@@ -199,6 +249,111 @@ public final class QuestNetworking {
                 }
             });
             context.setPacketHandled(true);
+        }
+
+        // ============================================================
+        // Полиморфная сериализация/десериализация QuestTask.
+        //
+        // ВАЖНО: используется обычный switch со строковыми case-метками
+        // и явным break, а НЕ arrow-switch с "case X, default ->" -
+        // последнее в принципе не компилируется в Java (default нельзя
+        // комбинировать с обычной меткой в одной ветке ни в каком
+        // источнике/версии) - на этом уже спотыкались раньше.
+        // ============================================================
+        private static void encodeTask(FriendlyByteBuf buffer, QuestTask task) {
+            String type = task.getType() == null ? "MANUAL" : task.getType().toUpperCase(java.util.Locale.ROOT);
+            buffer.writeUtf(type);
+            buffer.writeUtf(task.getId());
+            buffer.writeUtf(task.getTitle());
+            buffer.writeUtf(task.getDescription());
+
+            switch (type) {
+                case "LOCATION": {
+                    LocationQuestTask lt = (LocationQuestTask) task;
+                    buffer.writeUtf(lt.getDimension());
+                    buffer.writeDouble(lt.getX());
+                    buffer.writeDouble(lt.getY());
+                    buffer.writeDouble(lt.getZ());
+                    buffer.writeDouble(lt.getRadius());
+                    break;
+                }
+                case "ITEM": {
+                    ItemQuestTask it = (ItemQuestTask) task;
+                    buffer.writeUtf(it.getTarget());
+                    buffer.writeInt(it.getCount());
+                    buffer.writeBoolean(it.isConsume());
+                    break;
+                }
+                case "BLOCK_BREAK": {
+                    BlockBreakQuestTask bt = (BlockBreakQuestTask) task;
+                    buffer.writeUtf(bt.getBlockId());
+                    buffer.writeInt(bt.getCount());
+                    break;
+                }
+                case "KILL_ENTITY": {
+                    KillEntityQuestTask kt = (KillEntityQuestTask) task;
+                    buffer.writeUtf(kt.getEntityType());
+                    buffer.writeInt(kt.getCount());
+                    break;
+                }
+                default:
+                    // MANUAL и любой неизвестный тип - дополнительных полей нет.
+                    break;
+            }
+        }
+
+        private static QuestTask decodeTask(FriendlyByteBuf buffer) {
+            String type = buffer.readUtf();
+            String id = buffer.readUtf();
+            String title = buffer.readUtf();
+            String description = buffer.readUtf();
+
+            switch (type) {
+                case "LOCATION": {
+                    LocationQuestTask lt = new LocationQuestTask();
+                    lt.setId(id);
+                    lt.setTitle(title);
+                    lt.setDescription(description);
+                    lt.setDimension(buffer.readUtf());
+                    lt.setX(buffer.readDouble());
+                    lt.setY(buffer.readDouble());
+                    lt.setZ(buffer.readDouble());
+                    lt.setRadius(buffer.readDouble());
+                    return lt;
+                }
+                case "ITEM": {
+                    ItemQuestTask it = new ItemQuestTask();
+                    it.setId(id);
+                    it.setTitle(title);
+                    it.setDescription(description);
+                    it.setTarget(buffer.readUtf());
+                    it.setCount(buffer.readInt());
+                    it.setConsume(buffer.readBoolean());
+                    return it;
+                }
+                case "BLOCK_BREAK": {
+                    BlockBreakQuestTask bt = new BlockBreakQuestTask();
+                    bt.setId(id);
+                    bt.setTitle(title);
+                    bt.setDescription(description);
+                    bt.setBlockId(buffer.readUtf());
+                    bt.setCount(buffer.readInt());
+                    return bt;
+                }
+                case "KILL_ENTITY": {
+                    KillEntityQuestTask kt = new KillEntityQuestTask();
+                    kt.setId(id);
+                    kt.setTitle(title);
+                    kt.setDescription(description);
+                    kt.setEntityType(buffer.readUtf());
+                    kt.setCount(buffer.readInt());
+                    return kt;
+                }
+                default:
+                    // MANUAL и любой неизвестный/будущий тип - как ManualQuestTask,
+                    // чтобы декодирование не падало на новых типах со старого клиента.
+                    return new ManualQuestTask(id, title, description);
+            }
         }
     }
 }

@@ -23,6 +23,7 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class QuestScreen extends Screen {
@@ -32,6 +33,13 @@ public class QuestScreen extends Screen {
     private static final ResourceLocation WIDGETS_TEXTURE =
             new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/quest_widgets.png");
     private static final int TEXTURE_SIZE = 256;
+
+    /**
+     * Null-безопасный порядок сортировки по названию: квест с битым JSON
+     * (без "title") не должен ронять экран NullPointerException'ом.
+     */
+    private static final Comparator<QuestData> QUEST_ORDER =
+            Comparator.comparing(QuestData::getTitle, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER));
 
     private static final int PANEL_X = 18;
     private static final int PANEL_Y = 18;
@@ -43,14 +51,36 @@ public class QuestScreen extends Screen {
     private static final int ROW_HEIGHT = 22;
     private static final int LEFT_WIDTH = 180;
     private static final int DETAILS_X = 240;
+    private static final int SCROLLBAR_WIDTH = 3;
+
+    private static final long ROW_ANIM_STAGGER_MS = 25;
+    private static final long ROW_ANIM_DURATION_MS = 180;
+    private static final int ROW_ANIM_SLIDE_PX = 8;
 
     private QuestData selectedQuest;
     private QuestTab currentTab = QuestTab.ACTIVE;
     private final Map<String, Boolean> expandedDescriptions = new HashMap<>();
     private final Map<QuestTab, PlateButton> tabButtons = new EnumMap<>(QuestTab.class);
 
+    private final long openedAt = Util.getMillis();
+    private final boolean prevHideGui;
+
+    private int listScroll;
+    private int detailsScroll;
+
     public QuestScreen() {
         super(Component.literal("Квесты"));
+        // Прячем хотбар/крестик прицела, пока открыт журнал квестов - для
+        // ощущения полноэкранного "дневника", а не наложенного окна поверх
+        // обычного HUD. Возвращаем как было в removed().
+        this.prevHideGui = Minecraft.getInstance().options.hideGui;
+        Minecraft.getInstance().options.hideGui = true;
+    }
+
+    @Override
+    public void removed() {
+        Minecraft.getInstance().options.hideGui = this.prevHideGui;
+        super.removed();
     }
 
     @Override
@@ -68,7 +98,7 @@ public class QuestScreen extends Screen {
                 0, 0, 20, 0, null, null, 20, 20
         ));
 
-        // Вкладки - теперь настоящие Button-виджеты с текстурными состояниями
+        // Вкладки - настоящие Button-виджеты с текстурными состояниями
         // normal/hover/selected, а не ручная отрисовка + отдельный hit-test.
         int tabX = PANEL_X + 12;
         int tabY = PANEL_Y + 44;
@@ -89,6 +119,8 @@ public class QuestScreen extends Screen {
     private void switchTab(QuestTab tab) {
         this.currentTab = tab;
         tabButtons.forEach((t, btn) -> btn.setSelected(t == tab));
+        this.listScroll = 0;
+        this.detailsScroll = 0;
         selectFirstVisibleQuest();
     }
 
@@ -108,18 +140,20 @@ public class QuestScreen extends Screen {
         if (button == 0) {
             int listX = PANEL_X + 12;
             int listY = PANEL_Y + 72;
-            if (mouseX >= listX && mouseX <= listX + LEFT_WIDTH && mouseY >= listY && mouseY <= listY + this.height - 130) {
+            int listHeight = this.height - 130;
+            if (mouseX >= listX && mouseX <= listX + LEFT_WIDTH && mouseY >= listY && mouseY <= listY + listHeight) {
                 List<QuestData> filtered = getFilteredQuests();
-                int index = (int) ((mouseY - listY - 8) / ROW_HEIGHT);
+                int index = (int) ((mouseY - listY - 8 + listScroll) / ROW_HEIGHT);
                 if (index >= 0 && index < filtered.size()) {
                     selectedQuest = filtered.get(index);
+                    this.detailsScroll = 0;
                     return true;
                 }
             }
 
             if (selectedQuest != null) {
                 int x2 = DETAILS_X + 10;
-                int y2 = PANEL_Y + 72 + 60;
+                int y2 = PANEL_Y + 72 + 60 - detailsScroll;
                 int width = this.width - DETAILS_X - 24;
                 for (int i = 0; i < selectedQuest.getTasks().size(); i++) {
                     QuestTask task = selectedQuest.getTasks().get(i);
@@ -147,6 +181,31 @@ public class QuestScreen extends Screen {
     }
 
     @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        int listX = PANEL_X + 12;
+        int listY = PANEL_Y + 72;
+        int listHeight = this.height - 130;
+        if (mouseX >= listX && mouseX <= listX + LEFT_WIDTH && mouseY >= listY && mouseY <= listY + listHeight) {
+            int contentHeight = getFilteredQuests().size() * ROW_HEIGHT + 8;
+            int maxScroll = Math.max(0, contentHeight - listHeight);
+            listScroll = clamp(listScroll - (int) (delta * ROW_HEIGHT * 2), 0, maxScroll);
+            return true;
+        }
+
+        int detailsY = PANEL_Y + 72;
+        int detailsHeight = this.height - 130;
+        if (selectedQuest != null && mouseX >= DETAILS_X && mouseX <= this.width - 24 && mouseY >= detailsY && mouseY <= detailsY + detailsHeight) {
+            int width = this.width - DETAILS_X - 24;
+            int contentHeight = measureDetailsHeight(selectedQuest, width);
+            int maxScroll = Math.max(0, contentHeight - detailsHeight);
+            detailsScroll = clamp(detailsScroll - (int) (delta * ROW_HEIGHT * 2), 0, maxScroll);
+            return true;
+        }
+
+        return super.mouseScrolled(mouseX, mouseY, delta);
+    }
+
+    @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (keyCode == 256 || keyCode == 257) {
             this.onClose();
@@ -158,6 +217,16 @@ public class QuestScreen extends Screen {
     @Override
     public void onClose() {
         Minecraft.getInstance().setScreen(null);
+    }
+
+    private static int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    private static float easeOutCubic(float t) {
+        float clamped = Math.max(0.0F, Math.min(1.0F, t));
+        float inv = 1.0F - clamped;
+        return 1.0F - inv * inv * inv;
     }
 
     private void drawPanel(PoseStack poseStack, int x, int y, int width, int height) {
@@ -184,25 +253,46 @@ public class QuestScreen extends Screen {
         GuiComponent.fill(poseStack, x, y, x + width, y + height, 0xFF1A1A1A);
 
         List<QuestData> filtered = getFilteredQuests();
+        int contentHeight = filtered.size() * ROW_HEIGHT + 8;
+        int maxScroll = Math.max(0, contentHeight - height);
+        listScroll = clamp(listScroll, 0, maxScroll);
+
+        GuiComponent.enableScissor(x, y, x + width, y + height);
+        long elapsed = Util.getMillis() - openedAt;
         for (int i = 0; i < filtered.size(); i++) {
             QuestData quest = filtered.get(i);
-            int rowY = y + 8 + i * ROW_HEIGHT;
-            if (rowY > y + height - ROW_HEIGHT) {
+            int rowY = y + 8 + i * ROW_HEIGHT - listScroll;
+            if (rowY > y + height) {
                 break;
             }
+            if (rowY < y - ROW_HEIGHT) {
+                continue;
+            }
 
-            boolean selected = selectedQuest != null && selectedQuest.getId().equals(quest.getId());
+            // Ступенчатая анимация появления строк (fade + сдвиг снизу вверх).
+            float t = easeOutCubic((float) (elapsed - i * ROW_ANIM_STAGGER_MS) / ROW_ANIM_DURATION_MS);
+            if (t <= 0.0F) {
+                continue;
+            }
+            int animatedY = rowY + Math.round((1.0F - t) * ROW_ANIM_SLIDE_PX);
+
+            boolean selected = selectedQuest != null && Objects.equals(selectedQuest.getId(), quest.getId());
             boolean hovered = !selected
                     && mouseX >= x + 4 && mouseX <= x + width - 4
                     && mouseY >= rowY && mouseY <= rowY + ROW_HEIGHT - 2;
 
-            RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+            RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, t);
             RenderSystem.setShaderTexture(0, WIDGETS_TEXTURE);
             int u = selected ? 64 : (hovered ? 32 : 0);
-            blit(poseStack, x + 4, rowY, width - 8, ROW_HEIGHT - 2, u, 44, 32, 22, TEXTURE_SIZE, TEXTURE_SIZE);
+            blit(poseStack, x + 4, animatedY, width - 8, ROW_HEIGHT - 2, u, 44, 32, 22, TEXTURE_SIZE, TEXTURE_SIZE);
 
-            drawScrollableText(poseStack, quest.getTitle(), x + 10, rowY + 6, x + width - 14, 0xFFFFFF);
+            int textColor = withAlpha(0xFFFFFF, t);
+            drawScrollableText(poseStack, quest.getTitle(), x + 10, animatedY + 6, x + width - 14, textColor);
         }
+        GuiComponent.disableScissor();
+        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+
+        drawScrollbar(poseStack, x + width - SCROLLBAR_WIDTH - 2, y, height, contentHeight, listScroll);
     }
 
     private void drawQuestDetails(PoseStack poseStack) {
@@ -215,9 +305,16 @@ public class QuestScreen extends Screen {
         int height = this.height - 130;
         GuiComponent.fill(poseStack, x, y, x + width, y + height, 0xFF1A1A1A);
 
-        drawScrollableText(poseStack, selectedQuest.getTitle(), x + 10, y + 10, x + width - 10, 0xFFFFFF);
+        int contentHeight = measureDetailsHeight(selectedQuest, width);
+        int maxScroll = Math.max(0, contentHeight - height);
+        detailsScroll = clamp(detailsScroll, 0, maxScroll);
 
-        int descriptionY = y + 32;
+        GuiComponent.enableScissor(x, y, x + width, y + height);
+        int oy = y - detailsScroll;
+
+        drawScrollableText(poseStack, selectedQuest.getTitle(), x + 10, oy + 10, x + width - 10, 0xFFFFFF);
+
+        int descriptionY = oy + 32;
         if (selectedQuest.getTasks().stream().anyMatch(task -> task instanceof LocationQuestTask)) {
             this.font.draw(poseStack, Component.literal("Маркер: идите к указанной точке"), x + 10, descriptionY, 0xFFDDAA00);
             descriptionY += 14;
@@ -246,6 +343,37 @@ public class QuestScreen extends Screen {
             }
             taskY += 34;
         }
+        GuiComponent.disableScissor();
+
+        drawScrollbar(poseStack, x + width - SCROLLBAR_WIDTH, y, height, contentHeight, detailsScroll);
+    }
+
+    /**
+     * Считает итоговую высоту содержимого панели описания (без отрисовки),
+     * той же арифметикой, что и drawQuestDetails - чтобы знать, докуда можно
+     * скроллить и какого размера рисовать бегунок скроллбара.
+     */
+    private int measureDetailsHeight(QuestData quest, int width) {
+        int descriptionY = 32;
+        if (quest.getTasks().stream().anyMatch(task -> task instanceof LocationQuestTask)) {
+            descriptionY += 14;
+        }
+        int conditionY = descriptionY + getWrappedTextHeight(quest.getDescription(), width - 20) + 10;
+        int taskY = conditionY + 18;
+        return taskY + quest.getTasks().size() * 34 + 10;
+    }
+
+    /** Простой вертикальный скроллбар справа от панели - трек + пропорциональный бегунок. */
+    private void drawScrollbar(PoseStack poseStack, int x, int y, int viewHeight, int contentHeight, int scroll) {
+        if (contentHeight <= viewHeight) {
+            return;
+        }
+        GuiComponent.fill(poseStack, x, y, x + SCROLLBAR_WIDTH, y + viewHeight, 0x30FFFFFF);
+
+        int maxScroll = contentHeight - viewHeight;
+        int thumbHeight = Math.max(16, viewHeight * viewHeight / contentHeight);
+        int thumbY = y + (scroll * (viewHeight - thumbHeight)) / Math.max(1, maxScroll);
+        GuiComponent.fill(poseStack, x, thumbY, x + SCROLLBAR_WIDTH, thumbY + thumbHeight, 0x90FFFFFF);
     }
 
     private void selectFirstVisibleQuest() {
@@ -332,9 +460,9 @@ public class QuestScreen extends Screen {
 
     private List<QuestData> getQuestList() {
         List<QuestData> quests = QuestClientState.getQuests().values().stream()
-                .sorted(Comparator.comparing(QuestData::getTitle, String.CASE_INSENSITIVE_ORDER))
+                .sorted(QUEST_ORDER)
                 .collect(Collectors.toCollection(ArrayList::new));
-        if (selectedQuest != null && quests.stream().noneMatch(quest -> quest.getId().equals(selectedQuest.getId()))) {
+        if (selectedQuest != null && quests.stream().noneMatch(quest -> Objects.equals(quest.getId(), selectedQuest.getId()))) {
             selectedQuest = quests.isEmpty() ? null : quests.get(0);
         }
         return quests;
@@ -350,6 +478,11 @@ public class QuestScreen extends Screen {
 
     private String formatLocation(LocationQuestTask task) {
         return String.format("dim=%s x=%.1f y=%.1f z=%.1f r=%.1f", task.getDimension(), task.getX(), task.getY(), task.getZ(), task.getRadius());
+    }
+
+    private static int withAlpha(int rgb, float alpha) {
+        int a = Math.round(255 * Math.max(0.0F, Math.min(1.0F, alpha)));
+        return (a << 24) | (rgb & 0xFFFFFF);
     }
 
     private enum QuestTab {

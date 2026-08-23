@@ -17,6 +17,8 @@ public class PlayerQuestData implements IPlayerQuestData, INBTSerializable<Compo
 
     private final Map<String, QuestStatus> statuses = new HashMap<>();
     private final Map<String, Set<String>> completedTasks = new HashMap<>();
+    /** questId -> (taskId -> прогресс). Только для автоотслеживаемых типов задач. */
+    private final Map<String, Map<String, Integer>> taskProgress = new HashMap<>();
 
     @Override
     public QuestStatus getStatus(String questId) {
@@ -28,6 +30,7 @@ public class PlayerQuestData implements IPlayerQuestData, INBTSerializable<Compo
         if (status == null || status == QuestStatus.NOT_STARTED) {
             statuses.remove(questId);
             completedTasks.remove(questId);
+            taskProgress.remove(questId);
             return;
         }
         statuses.put(questId, status);
@@ -67,15 +70,45 @@ public class PlayerQuestData implements IPlayerQuestData, INBTSerializable<Compo
     }
 
     @Override
+    public int getTaskProgress(String questId, String taskId) {
+        Map<String, Integer> quest = taskProgress.get(questId);
+        return quest == null ? 0 : quest.getOrDefault(taskId, 0);
+    }
+
+    @Override
+    public void setTaskProgress(String questId, String taskId, int value) {
+        if (value <= 0) {
+            Map<String, Integer> quest = taskProgress.get(questId);
+            if (quest != null) {
+                quest.remove(taskId);
+                if (quest.isEmpty()) {
+                    taskProgress.remove(questId);
+                }
+            }
+            return;
+        }
+        taskProgress.computeIfAbsent(questId, ignored -> new HashMap<>()).put(taskId, value);
+    }
+
+    @Override
+    public Map<String, Map<String, Integer>> getAllTaskProgress() {
+        Map<String, Map<String, Integer>> copy = new HashMap<>();
+        taskProgress.forEach((questId, tasks) -> copy.put(questId, new HashMap<>(tasks)));
+        return copy;
+    }
+
+    @Override
     public void reset(String questId) {
         statuses.remove(questId);
         completedTasks.remove(questId);
+        taskProgress.remove(questId);
     }
 
     @Override
     public void clear() {
         statuses.clear();
         completedTasks.clear();
+        taskProgress.clear();
     }
 
     @Override
@@ -84,6 +117,7 @@ public class PlayerQuestData implements IPlayerQuestData, INBTSerializable<Compo
         if (other instanceof PlayerQuestData otherData) {
             otherData.statuses.forEach((questId, status) -> statuses.put(questId, status));
             otherData.completedTasks.forEach((questId, tasks) -> completedTasks.put(questId, new LinkedHashSet<>(tasks)));
+            otherData.taskProgress.forEach((questId, tasks) -> taskProgress.put(questId, new HashMap<>(tasks)));
         }
     }
 
@@ -96,6 +130,15 @@ public class PlayerQuestData implements IPlayerQuestData, INBTSerializable<Compo
             tasks.stream().sorted().forEach(taskId -> taskList.add(StringTag.valueOf(taskId)));
             root.put("tasks:" + questId, taskList);
         });
+
+        CompoundTag progressRoot = new CompoundTag();
+        taskProgress.forEach((questId, tasks) -> {
+            CompoundTag questProgress = new CompoundTag();
+            tasks.forEach(questProgress::putInt);
+            progressRoot.put(questId, questProgress);
+        });
+        root.put("progress", progressRoot);
+
         return root;
     }
 
@@ -120,6 +163,20 @@ public class PlayerQuestData implements IPlayerQuestData, INBTSerializable<Compo
                 }
                 if (!tasks.isEmpty()) {
                     completedTasks.put(questId, tasks);
+                }
+            }
+        }
+
+        if (nbt.contains("progress")) {
+            CompoundTag progressRoot = nbt.getCompound("progress");
+            for (String questId : progressRoot.getAllKeys()) {
+                CompoundTag questProgress = progressRoot.getCompound(questId);
+                Map<String, Integer> tasks = new HashMap<>();
+                for (String taskId : questProgress.getAllKeys()) {
+                    tasks.put(taskId, questProgress.getInt(taskId));
+                }
+                if (!tasks.isEmpty()) {
+                    taskProgress.put(questId, tasks);
                 }
             }
         }

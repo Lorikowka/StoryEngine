@@ -170,6 +170,25 @@ public class QuestManager {
         }
     }
 
+    /**
+     * Полностью удаляет квест: из кэша и файл с диска.
+     * Используется командой /quest delete. Прогресс игроков по этому
+     * квесту (Capability) не трогает - только определение самого квеста.
+     * Возвращает false, если квеста с таким id и не было.
+     */
+    public boolean delete(String id) {
+        boolean existed = questCache.remove(id) != null;
+
+        Path file = getQuestsDirectory().resolve(id + ".json");
+        try {
+            Files.deleteIfExists(file);
+        } catch (IOException e) {
+            LOGGER.error("[StoryEngine] Не удалось удалить файл квеста {}", file, e);
+        }
+
+        return existed;
+    }
+
     public int size() {
         return questCache.size();
     }

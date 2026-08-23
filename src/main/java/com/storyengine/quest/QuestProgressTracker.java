@@ -12,13 +12,9 @@ import net.minecraftforge.event.entity.living.LivingDeathEvent;
 import net.minecraftforge.event.level.BlockEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 
-import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
 
 public class QuestProgressTracker {
-
-    private static final Map<UUID, Map<String, Map<String, Integer>>> PLAYER_PROGRESS = new HashMap<>();
 
     @SubscribeEvent
     public void onPlayerTick(TickEvent.PlayerTickEvent event) {
@@ -198,16 +194,20 @@ public class QuestProgressTracker {
         return count;
     }
 
+    /**
+     * Прогресс всех отслеживаемых задач игрока по всем квестам - теперь
+     * читается из Capability (NBT), а не из статической HashMap в памяти,
+     * поэтому переживает рестарт сервера (раньше обнулялся).
+     */
     public static Map<String, Map<String, Integer>> getProgress(ServerPlayer player) {
-        return PLAYER_PROGRESS.computeIfAbsent(player.getUUID(), ignored -> new HashMap<>());
+        return PlayerQuestDataHelper.getAllTaskProgress(player);
     }
 
     private void setProgress(ServerPlayer player, String questId, String taskId, int value) {
-        Map<String, Map<String, Integer>> playerProgress = getProgress(player);
-        Map<String, Integer> questProgress = playerProgress.computeIfAbsent(questId, ignored -> new HashMap<>());
         int clamped = Math.max(0, value);
-        Integer previous = questProgress.put(taskId, clamped);
-        if (previous == null || previous != clamped) {
+        int previous = PlayerQuestDataHelper.getTaskProgress(player, questId, taskId);
+        PlayerQuestDataHelper.setTaskProgressQuiet(player, questId, taskId, clamped);
+        if (previous != clamped) {
             // Синхронизируем только при реальном изменении прогресса,
             // а не на каждом тике - иначе клиенту летит полный пакет
             // квестов 20 раз в секунду на каждую отслеживаемую задачу.
@@ -221,7 +221,6 @@ public class QuestProgressTracker {
     }
 
     private int getProgress(ServerPlayer player, String questId, String taskId) {
-        Map<String, Integer> taskProgress = getProgress(player).getOrDefault(questId, new HashMap<>());
-        return taskProgress.getOrDefault(taskId, 0);
+        return PlayerQuestDataHelper.getTaskProgress(player, questId, taskId);
     }
 }

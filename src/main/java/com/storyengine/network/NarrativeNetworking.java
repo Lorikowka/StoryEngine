@@ -14,8 +14,9 @@ import java.util.Collection;
 public final class NarrativeNetworking {
 
     // Id 0 и 1 уже заняты в QuestNetworking.register() - см. тот класс.
+    // Сюжетный чат работает только на приём (read-only): C2S-пакет реплик
+    // игрока удалён вместе с полем ввода в NarrativeLogScreen.
     private static final int STORY_CHAT_PACKET_ID = 2;
-    private static final int PLAYER_REPLY_PACKET_ID = 3;
 
     private NarrativeNetworking() {
     }
@@ -28,18 +29,6 @@ public final class NarrativeNetworking {
                 S2CStoryChatPacket::decode,
                 S2CStoryChatPacket::handle
         );
-        QuestNetworking.CHANNEL.registerMessage(
-                PLAYER_REPLY_PACKET_ID,
-                C2SNarrativeReplyPacket.class,
-                C2SNarrativeReplyPacket::encode,
-                C2SNarrativeReplyPacket::decode,
-                C2SNarrativeReplyPacket::handle
-        );
-    }
-
-    /** Клиент -> сервер: игрок отправил реплику из NarrativeLogScreen. */
-    public static void sendReply(String text) {
-        QuestNetworking.CHANNEL.sendToServer(new C2SNarrativeReplyPacket(text));
     }
 
     public static void sendToPlayers(Collection<ServerPlayer> players, String speaker, String iconId, Component message) {

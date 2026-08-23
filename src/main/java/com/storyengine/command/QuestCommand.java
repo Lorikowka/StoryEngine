@@ -65,6 +65,12 @@ public final class QuestCommand {
                                 .then(Commands.argument("title", StringArgumentType.greedyString())
                                         .executes(ctx -> createQuest(ctx, StringArgumentType.getString(ctx, "title"))))))
 
+                // /quest delete <id> - полностью удаляет квест (кэш + файл на диске)
+                .then(Commands.literal("delete")
+                        .then(Commands.argument("id", StringArgumentType.word())
+                                .suggests(QuestCommand::suggestQuestIds)
+                                .executes(QuestCommand::deleteQuest)))
+
                 // /quest reload
                 .then(Commands.literal("reload")
                         .executes(QuestCommand::reload))
@@ -72,6 +78,12 @@ public final class QuestCommand {
                 // /quest list
                 .then(Commands.literal("list")
                         .executes(QuestCommand::list))
+
+                // /quest notify <title> <text> - тост всем игрокам, квесты не трогает
+                .then(Commands.literal("notify")
+                        .then(Commands.argument("title", StringArgumentType.string())
+                                .then(Commands.argument("text", StringArgumentType.greedyString())
+                                        .executes(QuestCommand::notify))))
 
                 // /quest start <player> <id>
                 .then(Commands.literal("start")
@@ -221,6 +233,51 @@ public final class QuestCommand {
                     "Создан шаблон квеста '" + data.getId() + "' (" + data.getTitle() + ") в config/story_engine/quests/"
             ), true);
         }
+        return 1;
+    }
+
+    // ----------------------------------------------------------------
+    // /quest delete <id>
+    // ----------------------------------------------------------------
+    private static int deleteQuest(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        String id = StringArgumentType.getString(ctx, "id");
+        QuestManager manager = StoryEngineMod.QUEST_MANAGER;
+
+        if (!manager.exists(id)) {
+            source.sendFailure(Component.literal("Квест с id '" + id + "' не найден."));
+            return 0;
+        }
+
+        String title = manager.getQuest(id).map(QuestData::getTitle).orElse(id);
+        manager.delete(id);
+
+        // Прогресс/статус по этому квесту у игроков, что сейчас онлайн, тоже
+        // сбрасываем - иначе он останется "висячей" записью без смысла
+        // (сам квест для игрока больше нигде не отобразится, но статус в
+        // Capability формально сохранится, пока не будет перезаписан).
+        for (ServerPlayer online : ServerLifecycleHooks.getCurrentServer().getPlayerList().getPlayers()) {
+            PlayerQuestDataHelper.reset(online, id);
+            com.storyengine.network.QuestNetworking.syncToPlayer(online);
+        }
+
+        source.sendSuccess(Component.literal(
+                "Квест '" + id + "' (" + title + ") удалён полностью (кэш + файл на диске)."
+        ), true);
+        return 1;
+    }
+
+    // ----------------------------------------------------------------
+    // /quest notify <title> <text> - тост всем игрокам, квестов не касается
+    // ----------------------------------------------------------------
+    private static int notify(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack source = ctx.getSource();
+        String title = StringArgumentType.getString(ctx, "title");
+        String text = StringArgumentType.getString(ctx, "text");
+
+        com.storyengine.network.QuestNetworking.sendToastToAll(title, text);
+
+        source.sendSuccess(Component.literal("Уведомление отправлено всем игрокам онлайн."), true);
         return 1;
     }
 

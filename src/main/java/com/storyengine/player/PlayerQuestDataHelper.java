@@ -36,6 +36,23 @@ public final class PlayerQuestDataHelper {
         sync(player);
     }
 
+    public static int getTaskProgress(ServerPlayer player, String questId, String taskId) {
+        return getData(player).getTaskProgress(questId, taskId);
+    }
+
+    /**
+     * Без автоматической синхронизации - вызывающий код (QuestProgressTracker)
+     * сам решает, когда слать sync (только при реальном изменении значения),
+     * иначе на каждый тик отслеживаемой задачи улетал бы полный пакет квестов.
+     */
+    public static void setTaskProgressQuiet(ServerPlayer player, String questId, String taskId, int value) {
+        getData(player).setTaskProgress(questId, taskId, value);
+    }
+
+    public static java.util.Map<String, java.util.Map<String, Integer>> getAllTaskProgress(ServerPlayer player) {
+        return getData(player).getAllTaskProgress();
+    }
+
     public static IPlayerQuestData getData(ServerPlayer player) {
         return player.getCapability(PlayerQuestDataCapability.QUEST_DATA)
                 .orElseThrow(() -> new IllegalStateException("Quest data capability is missing for player " + player.getName().getString()));

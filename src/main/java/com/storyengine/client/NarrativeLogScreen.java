@@ -4,35 +4,28 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.storyengine.narrative.NarrativeChatManager;
 import com.storyengine.narrative.NarrativeMessage;
-import com.storyengine.network.NarrativeNetworking;
-import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FormattedCharSequence;
-import net.minecraftforge.client.gui.widget.ExtendedButton;
 
 import java.util.List;
 
 /**
- * Экран истории сюжетного чата ("что я пропустил?") + поле ввода, чтобы
- * ответить в этот же чат. Ответ игрока уходит на сервер (см.
- * NarrativeNetworking.sendReply) и рассылается всем как обычная реплика
- * сюжетного чата - с иконкой (нет у игрока по умолчанию) и цветом имени
- * из NarrativeConfig ("/storytell defaultcolor <hex>").
+ * Экран истории сюжетного чата ("что я пропустил?"). Строго ТОЛЬКО для
+ * чтения: никаких полей ввода, кнопок и отправки реплик - сюжетный чат
+ * наполняется исключительно сервером (пакет S2CStoryChatPacket,
+ * команда /storytell). Игрок может только листать историю колёсиком мыши.
  */
 public class NarrativeLogScreen extends Screen {
 
     private static final int MARGIN = 32;
-    private static final int INPUT_HEIGHT = 20;
-    private static final int SEND_BUTTON_WIDTH = 70;
     private static final int ICON_SIZE = 20;
     private static final int ROW_GAP = 10;
     private static final int LINE_HEIGHT = 10;
     private static final int NAME_LINE_HEIGHT = 11;
     private static final int BACKGROUND_COLOR = 0xC0101010;
 
-    private EditBox input;
     /** Прокрутка в пикселях от самого низа истории (0 = видим последнее сообщение). */
     private int scrollOffset;
 
@@ -42,48 +35,13 @@ public class NarrativeLogScreen extends Screen {
 
     @Override
     protected void init() {
-        int panelLeft = MARGIN;
-        int panelWidth = this.width - MARGIN * 2;
-        int inputY = this.height - MARGIN - INPUT_HEIGHT;
-        int inputWidth = panelWidth - SEND_BUTTON_WIDTH - 6;
-
-        this.input = new EditBox(this.font, panelLeft, inputY, inputWidth, INPUT_HEIGHT, Component.literal("Ответ"));
-        this.input.setMaxLength(256);
-        this.addRenderableWidget(this.input);
-        this.setInitialFocus(this.input);
-
-        this.addRenderableWidget(new ExtendedButton(
-                panelLeft + inputWidth + 6, inputY, SEND_BUTTON_WIDTH, INPUT_HEIGHT,
-                Component.literal("Отправить"), button -> sendReply()
-        ));
-
         this.scrollOffset = 0;
-    }
-
-    private void sendReply() {
-        String text = this.input.getValue().trim();
-        if (text.isEmpty()) {
-            return;
-        }
-        NarrativeNetworking.sendReply(text);
-        this.input.setValue("");
-        this.scrollOffset = 0;
-    }
-
-    @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        // Enter/Numpad Enter - отправить, пока фокус в поле ввода.
-        if ((keyCode == 257 || keyCode == 335) && this.getFocused() == this.input) {
-            sendReply();
-            return true;
-        }
-        return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
         int panelTop = MARGIN;
-        int panelBottom = this.height - MARGIN - INPUT_HEIGHT - 8;
+        int panelBottom = this.height - MARGIN;
         int maxScroll = Math.max(0, estimateTotalHistoryHeight() - (panelBottom - panelTop));
         this.scrollOffset = Math.max(0, Math.min(maxScroll, this.scrollOffset - (int) (delta * LINE_HEIGHT * 3)));
         return true;
@@ -129,7 +87,7 @@ public class NarrativeLogScreen extends Screen {
         int panelLeft = MARGIN;
         int panelWidth = this.width - MARGIN * 2;
         int panelTop = MARGIN;
-        int panelBottom = this.height - MARGIN - INPUT_HEIGHT - 8;
+        int panelBottom = this.height - MARGIN;
 
         TextureBlitHelper.fillBox(poseStack, panelLeft, panelTop, panelLeft + panelWidth, panelBottom, BACKGROUND_COLOR);
 
