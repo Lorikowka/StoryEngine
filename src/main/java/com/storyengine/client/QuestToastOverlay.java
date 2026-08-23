@@ -31,9 +31,10 @@ public final class QuestToastOverlay {
     private static final int MARGIN = 8;
     private static final int GAP = 4;
 
-    private static final long SLIDE_IN_MS = 300;
-    private static final long HOLD_MS = 2500;
-    private static final long FADE_OUT_MS = 400;
+    // Фазы как в KtsQuestMod: плавный въезд, удержание, затухание.
+    private static final long SLIDE_IN_MS = 600;
+    private static final long HOLD_MS = 1600;
+    private static final long FADE_OUT_MS = 600;
     private static final long TOTAL_MS = SLIDE_IN_MS + HOLD_MS + FADE_OUT_MS;
 
     private static final int BACKGROUND_RGB = 0x101018;
