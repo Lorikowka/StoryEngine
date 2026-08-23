@@ -2,7 +2,6 @@ package com.storyengine.client;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.storyengine.StoryEngineMod;
 import com.storyengine.network.QuestClientState;
 import com.storyengine.quest.BlockBreakQuestTask;
 import com.storyengine.quest.ItemQuestTask;
@@ -28,10 +27,10 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
- * Журнал квестов в виде компактного "дневника": центрированное окно
- * фиксированного размера 520x340 (не растягивается на весь экран),
- * вкладки со статус-иконками, список квестов с автором, панель деталей
- * с увеличенным заголовком и цветовым статусом.
+ * Журнал квестов в виде компактного "дневника": центрированное окно,
+ * размер которого пропорционален окну игры (в развёрнутом режиме - базовые
+ * 520x340), вкладки со статус-иконками, список квестов с автором, панель
+ * деталей с увеличенным заголовком и цветовым статусом.
  *
  * Визуальные решения:
  * - каскадные анимации появления (общий computeAnim, easeOutCubic,
@@ -45,18 +44,6 @@ import java.util.stream.Collectors;
  */
 public class QuestScreen extends Screen {
 
-    private static final ResourceLocation GUI_TEXTURE =
-            new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/quest_menu.png");
-    private static final ResourceLocation WIDGETS_TEXTURE =
-            new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/quest_widgets.png");
-    private static final ResourceLocation TITLE_ICON_TEXTURE =
-            new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/quest_icon.png");
-    private static final ResourceLocation STATUS_ACTIVE_ICON =
-            new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/status_active.png");
-    private static final ResourceLocation STATUS_COMPLETED_ICON =
-            new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/status_completed.png");
-    private static final ResourceLocation STATUS_FAILED_ICON =
-            new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/status_failed.png");
     private static final int TEXTURE_SIZE = 256;
 
     /** Null-безопасный порядок сортировки по названию: квест с битым JSON
@@ -64,9 +51,15 @@ public class QuestScreen extends Screen {
     private static final Comparator<QuestData> QUEST_ORDER =
             Comparator.comparing(QuestData::getTitle, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER));
 
-    // Габариты окна (в GUI-пикселях).
+    // Габариты окна в БАЗОВЫХ координатах виртуального пространства.
+    // Реальный размер вычисляется пропорционально окну игры в init():
+    // весь контент рисуется в базовых координатах через poseStack.scale(uiScale).
     private static final int WIN_W = 520;
     private static final int WIN_H = 340;
+    /** Свободные поля вокруг меню при расчёте масштаба (GUI-пиксели). */
+    private static final int SCREEN_MARGIN = 10;
+    /** Страховка от вырожденно маленьких окон - ниже этого масштаб не падает. */
+    private static final float MIN_UI_SCALE = 0.35F;
     private static final int INSET = 8;
 
     private static final int CLOSE_SIZE = 20;
@@ -112,8 +105,12 @@ public class QuestScreen extends Screen {
     private long listAnimStart = openedAt;
     private final boolean prevHideGui;
 
-    private int winLeft;
-    private int winTop;
+    /** Масштаб меню относительно базового размера 520x340 и экранные
+     * GUI-координаты его левого верхнего угла. */
+    private float uiScale;
+    private int originX;
+    private int originY;
+
     private int listScroll;
     private int detailsScroll;
 
@@ -134,14 +131,53 @@ public class QuestScreen extends Screen {
     @Override
     protected void init() {
         super.init();
-        this.winLeft = (this.width - WIN_W) / 2;
-        this.winTop = (this.height - WIN_H) / 2;
 
+        // Пропорциональный размер: масштаб ограничен свободным местом окна игры,
+        // кап 1.0 - на развёрнутом экране вид остаётся прежним (520x340).
+        float fitX = (this.width - SCREEN_MARGIN * 2.0F) / (float) WIN_W;
+        float fitY = (this.height - SCREEN_MARGIN * 2.0F) / (float) WIN_H;
+        // Фиксированный масштаб из конфига (uiScaleOverride > 0) перекрывает авто-подгонку.
+        double scaleOverride = MenuCustomizationConfig.uiScaleOverride();
+        if (scaleOverride > 0.0) {
+            this.uiScale = (float) Math.max(MIN_UI_SCALE, Math.min(scaleOverride, 1.5));
+        } else {
+            this.uiScale = Math.max(MIN_UI_SCALE, Math.min(Math.min(fitX, fitY), 1.0F));
+        }
+        this.originX = (this.width - Math.round(WIN_W * this.uiScale)) / 2;
+        this.originY = (this.height - Math.round(WIN_H * this.uiScale)) / 2;
+
+        // Кнопка закрытия - обычный виджет Screen в экранных координатах,
+        // поэтому её геометрия сразу умножается на масштаб.
+        int closeSize = Math.round(CLOSE_SIZE * this.uiScale);
         this.addRenderableWidget(new PlateButton(
-                this.winLeft + WIN_W - CLOSE_SIZE - 6, this.winTop + 6, CLOSE_SIZE, CLOSE_SIZE,
+                this.originX + Math.round((WIN_W - CLOSE_SIZE - 6) * this.uiScale),
+                this.originY + Math.round(6 * this.uiScale),
+                closeSize, closeSize,
                 Component.literal("×"), button -> this.onClose(),
                 0, 0, 20, 0, null, null, 20, 20
         ));
+    }
+
+    /** Переводит X из виртуального пространства окна в экранные GUI-координаты. */
+    private double screenX(double localX) {
+        return this.originX + localX * this.uiScale;
+    }
+
+    /** Переводит Y из виртуального пространства окна в экранные GUI-координаты. */
+    private double screenY(double localY) {
+        return this.originY + localY * this.uiScale;
+    }
+
+    /**
+     * enableScissor работает в экранных GUI-координатах и не знает о нашем
+     * pose-масштабе, поэтому прямоугольник переводится вручную.
+     */
+    private void enableLocalScissor(int minX, int minY, int maxX, int maxY) {
+        enableScissor(
+                (int) Math.round(screenX(minX)),
+                (int) Math.round(screenY(minY)),
+                (int) Math.round(screenX(maxX)),
+                (int) Math.round(screenY(maxY)));
     }
 
     private void switchTab(QuestTab tab) {
@@ -159,35 +195,47 @@ public class QuestScreen extends Screen {
     @Override
     public void render(PoseStack poseStack, int mouseX, int mouseY, float partialTick) {
         this.renderBackground(poseStack);
+
+        // Контент рисуется в виртуальных базовых координатах окна (0,0)-(520,340).
+        poseStack.pushPose();
+        poseStack.translate(this.originX, this.originY, 0.0F);
+        poseStack.scale(this.uiScale, this.uiScale, 1.0F);
+
+        double localMouseX = (mouseX - this.originX) / this.uiScale;
+        double localMouseY = (mouseY - this.originY) / this.uiScale;
+
         drawWindow(poseStack);
         drawTitle(poseStack);
-        drawTabs(poseStack, mouseX, mouseY);
-        drawQuestList(poseStack, mouseX, mouseY);
+        drawTabs(poseStack, localMouseX, localMouseY);
+        drawQuestList(poseStack, localMouseX, localMouseY);
         drawQuestDetails(poseStack);
+        poseStack.popPose();
+
+        // Виджеты (кнопка закрытия) живут в экранных координатах.
         super.render(poseStack, mouseX, mouseY, partialTick);
     }
 
     private void drawWindow(PoseStack poseStack) {
         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
-        RenderSystem.setShaderTexture(0, GUI_TEXTURE);
-        blit(poseStack, this.winLeft, this.winTop, WIN_W, WIN_H,
+        RenderSystem.setShaderTexture(0, MenuAssetsManager.get("quest_menu"));
+        blit(poseStack, 0, 0, WIN_W, WIN_H,
                 0.0F, 0.0F, TEXTURE_SIZE, TEXTURE_SIZE, TEXTURE_SIZE, TEXTURE_SIZE);
 
         GuiComponent.fill(poseStack,
-                this.winLeft + INSET, this.winTop + INSET,
-                this.winLeft + WIN_W - INSET, this.winTop + WIN_H - INSET,
-                0xCC202020);
+                INSET, INSET,
+                WIN_W - INSET, WIN_H - INSET,
+                MenuCustomizationConfig.windowFill());
     }
 
     private void drawTitle(PoseStack poseStack) {
         String title = "Квесты";
-        int x = this.winLeft + (WIN_W - this.font.width(title)) / 2;
-        this.font.drawShadow(poseStack, title, x, this.winTop + 9, 0xFFFFFF);
+        int x = (WIN_W - this.font.width(title)) / 2;
+        this.font.drawShadow(poseStack, title, x, 9, MenuCustomizationConfig.textPrimary());
     }
 
-    private void drawTabs(PoseStack poseStack, int mouseX, int mouseY) {
-        int tabX = this.winLeft + (WIN_W - (TAB_W * 3 + TAB_GAP * 2)) / 2;
-        int tabY = this.winTop + TAB_Y;
+    private void drawTabs(PoseStack poseStack, double mouseX, double mouseY) {
+        int tabX = (WIN_W - (TAB_W * 3 + TAB_GAP * 2)) / 2;
+        int tabY = TAB_Y;
         long elapsed = Util.getMillis() - this.openedAt;
 
         QuestTab[] tabs = QuestTab.values();
@@ -199,16 +247,17 @@ public class QuestScreen extends Screen {
             boolean hovered = mouseX >= x && mouseX <= x + TAB_W && mouseY >= y && mouseY <= y + TAB_H;
 
             RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, anim.alpha);
-            RenderSystem.setShaderTexture(0, WIDGETS_TEXTURE);
+            RenderSystem.setShaderTexture(0, MenuAssetsManager.get("quest_widgets"));
             int u = tab == currentTab ? 160 : (hovered ? 80 : 0);
             blit(poseStack, x, y, TAB_W, TAB_H, u, 20, 80, 24, TEXTURE_SIZE, TEXTURE_SIZE);
 
             // Иконка статуса слева от подписи.
-            RenderSystem.setShaderTexture(0, tab.icon());
+            RenderSystem.setShaderTexture(0, tab.iconLocation());
             blit(poseStack, x + 10, y + (TAB_H - TAB_ICON_SIZE) / 2, TAB_ICON_SIZE, TAB_ICON_SIZE,
                     0, 0, TAB_ICON_SIZE, TAB_ICON_SIZE, TAB_ICON_SIZE, TAB_ICON_SIZE);
 
-            int textColor = tab == currentTab ? 0xFFF6D57A : (hovered ? 0xFFFFFF : 0xA0A0A0);
+            int textColor = tab == currentTab ? MenuCustomizationConfig.accent()
+                    : (hovered ? MenuCustomizationConfig.tabHover() : MenuCustomizationConfig.tabIdle());
             int labelX = x + 26 + (TAB_W - 32 - this.font.width(tab.title)) / 2;
             int labelY = y + (TAB_H - 8) / 2;
             this.font.drawShadow(poseStack, tab.title, labelX, labelY, withAlpha(textColor, anim.alpha));
@@ -220,9 +269,9 @@ public class QuestScreen extends Screen {
         return WIN_H - LIST_Y - LIST_BOTTOM_INSET;
     }
 
-    private void drawQuestList(PoseStack poseStack, int mouseX, int mouseY) {
-        int x = this.winLeft + LIST_X;
-        int y = this.winTop + LIST_Y;
+    private void drawQuestList(PoseStack poseStack, double mouseX, double mouseY) {
+        int x = LIST_X;
+        int y = LIST_Y;
         int viewH = listViewportHeight();
 
         List<QuestData> filtered = getFilteredQuests();
@@ -230,7 +279,7 @@ public class QuestScreen extends Screen {
         int maxScroll = Math.max(0, contentHeight - viewH);
         listScroll = clamp(listScroll, 0, maxScroll);
 
-        GuiComponent.enableScissor(x, y, x + LIST_W, y + viewH);
+        enableLocalScissor(x, y, x + LIST_W, y + viewH);
         long elapsed = Util.getMillis() - this.listAnimStart;
 
         for (int i = 0; i < filtered.size(); i++) {
@@ -250,12 +299,12 @@ public class QuestScreen extends Screen {
                     && mouseY >= rowY && mouseY <= rowY + ROW_HEIGHT - 2;
 
             RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, anim.alpha);
-            RenderSystem.setShaderTexture(0, WIDGETS_TEXTURE);
+            RenderSystem.setShaderTexture(0, MenuAssetsManager.get("quest_widgets"));
             int u = selected ? 64 : (hovered ? 32 : 0);
             blit(poseStack, x + 2, animatedY, LIST_W - 4, ROW_HEIGHT - 2, u, 44, 32, 22, TEXTURE_SIZE, TEXTURE_SIZE);
 
-            int textColor = withAlpha(0xFFFFFF, anim.alpha);
-            int authorColor = withAlpha(0x909090, anim.alpha);
+            int textColor = withAlpha(MenuCustomizationConfig.textPrimary(), anim.alpha);
+            int authorColor = withAlpha(MenuCustomizationConfig.textAuthor(), anim.alpha);
             this.font.drawShadow(poseStack, truncate(quest.getTitle(), LIST_W - 34), x + 26, animatedY + 5, textColor);
             String author = quest.getAuthor();
             if (author != null && !author.isBlank()) {
@@ -269,7 +318,7 @@ public class QuestScreen extends Screen {
             String msg = currentTab.emptyMessage();
             int msgX = x + (LIST_W - this.font.width(msg)) / 2;
             int msgY = y + (viewH - 9) / 2;
-            this.font.drawShadow(poseStack, msg, msgX, msgY, 0x888888);
+            this.font.drawShadow(poseStack, msg, msgX, msgY, MenuCustomizationConfig.textEmptyState());
         } else if (maxScroll > 0) {
             drawScrollbar(poseStack, x + LIST_W - SCROLLBAR_WIDTH - 1, y, viewH, maxScroll, listScroll);
         }
@@ -280,12 +329,12 @@ public class QuestScreen extends Screen {
             return;
         }
         QuestData quest = selectedQuest;
-        int dx = this.winLeft + DETAILS_X;
-        int dy = this.winTop + LIST_Y;
-        int dw = this.winLeft + WIN_W - 12 - dx;
+        int dx = DETAILS_X;
+        int dy = LIST_Y;
+        int dw = WIN_W - 12 - dx;
 
-        // Заголовок: иконка + текст в масштабе 1.15x, блок центрируется как целое.
-        float titleScale = 1.15F;
+        // Заголовок: иконка + текст в масштабе 1.15x * fontScale, блок центрируется как целое.
+        float titleScale = 1.15F * (float) MenuCustomizationConfig.fontScale();
         int iconSize = 16;
         String titleText = truncate(quest.getTitle(), (int) ((dw - iconSize - 8) / titleScale));
         int titleTextW = (int) (this.font.width(titleText) * titleScale);
@@ -293,35 +342,36 @@ public class QuestScreen extends Screen {
         int blockX = dx + (dw - blockW) / 2;
         int titleY = dy - 2;
 
-        RenderSystem.setShaderTexture(0, TITLE_ICON_TEXTURE);
+        RenderSystem.setShaderTexture(0, MenuAssetsManager.get("quest_icon"));
         blit(poseStack, blockX, titleY + 1, iconSize, iconSize, 0, 0, 18, 18, 18, 18);
 
         poseStack.pushPose();
         poseStack.translate(blockX + iconSize + 6, titleY + 2, 0);
         poseStack.scale(titleScale, titleScale, 1.0F);
-        this.font.drawShadow(poseStack, titleText, 0, 0, 0xFFFFFF);
+        this.font.drawShadow(poseStack, titleText, 0, 0, MenuCustomizationConfig.textPrimary());
         poseStack.popPose();
 
         // Автор и статус.
         int infoY = dy + 22;
         String author = quest.getAuthor();
         if (author != null && !author.isBlank()) {
-            this.font.drawShadow(poseStack, "Автор:", dx, infoY, 0xAAAAAA);
-            this.font.drawShadow(poseStack, truncate(author, dw - 50), dx + this.font.width("Автор:") + 4, infoY, 0xFFFFFF);
+            this.font.drawShadow(poseStack, "Автор:", dx, infoY, MenuCustomizationConfig.textLabel());
+            this.font.drawShadow(poseStack, truncate(author, dw - 50), dx + this.font.width("Автор:") + 4, infoY,
+                    MenuCustomizationConfig.textPrimary());
         }
         QuestStatus st = QuestClientState.getStatuses().getOrDefault(quest.getId(), QuestStatus.NOT_STARTED);
-        this.font.drawShadow(poseStack, "Статус:", dx, infoY + 12, 0xAAAAAA);
+        this.font.drawShadow(poseStack, "Статус:", dx, infoY + 12, MenuCustomizationConfig.textLabel());
         this.font.drawShadow(poseStack, st.displayName(), dx + this.font.width("Статус:") + 4, infoY + 12, st.displayColor());
 
         // Тело панели: тот же метод считает высоту (dryRun) и рисует контент.
         int bodyTop = dy + DETAILS_GAP_TOP;
-        int bodyBottom = this.winTop + WIN_H - DETAILS_BOTTOM_INSET;
+        int bodyBottom = WIN_H - DETAILS_BOTTOM_INSET;
         int bodyH = bodyBottom - bodyTop;
         int totalH = renderDetailsBody(null, quest, st, dx, dw, bodyTop, 0, true);
         int maxScroll = Math.max(0, totalH - bodyH);
         detailsScroll = clamp(detailsScroll, 0, maxScroll);
 
-        GuiComponent.enableScissor(dx, bodyTop, dx + dw, bodyBottom);
+        enableLocalScissor(dx, bodyTop, dx + dw, bodyBottom);
         renderDetailsBody(poseStack, quest, st, dx, dw, bodyTop, detailsScroll, false);
         GuiComponent.disableScissor();
 
@@ -351,13 +401,13 @@ public class QuestScreen extends Screen {
                 int color;
                 if (st == QuestStatus.FAILED) {
                     prefix = "";
-                    color = 0xFF5555;
+                    color = MenuCustomizationConfig.taskFailed();
                 } else if (completed) {
                     prefix = STRIKETHROUGH;
-                    color = 0x55FF55;
+                    color = MenuCustomizationConfig.taskDone();
                 } else {
                     prefix = "";
-                    color = 0xDDDDDD;
+                    color = MenuCustomizationConfig.taskNormal();
                 }
 
                 StringBuilder line = new StringBuilder(prefix)
@@ -371,12 +421,12 @@ public class QuestScreen extends Screen {
                 y += 2;
                 if (Boolean.TRUE.equals(expandedDescriptions.get(task.getId()))
                         && task.getDescription() != null && !task.getDescription().isBlank()) {
-                    y = drawWrappedText(poseStack, task.getDescription(), dx + 12, y, dw - 32, 0x999999, dryRun);
+                    y = drawWrappedText(poseStack, task.getDescription(), dx + 12, y, dw - 32, MenuCustomizationConfig.taskDescription(), dryRun);
                     y += 2;
                 }
                 if (task instanceof LocationQuestTask locationTask) {
                     y = drawWrappedLineWithPill(poseStack, "→ " + formatLocation(locationTask),
-                            dx + 12, y, dw - 32, 0x93C5FD, dryRun);
+                            dx + 12, y, dw - 32, MenuCustomizationConfig.taskLocation(), dryRun);
                     y += 2;
                 }
                 y += 4;
@@ -385,14 +435,14 @@ public class QuestScreen extends Screen {
         }
 
         y = drawLabeledBlock(poseStack, "Описание:", dx, dw, y, dryRun);
-        y = drawWrappedText(poseStack, quest.getDescription(), dx, y, dw - 12, 0xFFFFFF, dryRun);
+        y = drawWrappedText(poseStack, quest.getDescription(), dx, y, dw - 12, MenuCustomizationConfig.textPrimary(), dryRun);
         return y + 8;
     }
 
     /** Серый заголовок блока ("Цели:", "Описание:") с отбивкой снизу. */
     private int drawLabeledBlock(PoseStack poseStack, String label, int dx, int dw, int y, boolean dryRun) {
         if (!dryRun) {
-            this.font.drawShadow(poseStack, label, dx, y, 0xAAAAAA);
+            this.font.drawShadow(poseStack, label, dx, y, MenuCustomizationConfig.textLabel());
         }
         return y + 14;
     }
@@ -403,11 +453,11 @@ public class QuestScreen extends Screen {
         if (clipped.isEmpty()) {
             return y + 12;
         }
-        if (!dryRun) {
-            int w = this.font.width(clipped);
-            GuiComponent.fill(poseStack, x - 3, y - 2, x + w + 5, y + 11, 0x26FFFFFF);
-            this.font.drawShadow(poseStack, clipped, x, y, color);
-        }
+            if (!dryRun) {
+                int w = this.font.width(clipped);
+                GuiComponent.fill(poseStack, x - 3, y - 2, x + w + 5, y + 11, MenuCustomizationConfig.pillBackground());
+                this.font.drawShadow(poseStack, clipped, x, y, color);
+            }
         return y + 12;
     }
 
@@ -476,11 +526,11 @@ public class QuestScreen extends Screen {
     }
 
     private void drawScrollbar(PoseStack poseStack, int x, int y, int viewHeight, int maxScroll, int scroll) {
-        GuiComponent.fill(poseStack, x, y, x + SCROLLBAR_WIDTH, y + viewHeight, 0x30FFFFFF);
+        GuiComponent.fill(poseStack, x, y, x + SCROLLBAR_WIDTH, y + viewHeight, MenuCustomizationConfig.scrollbarTrack());
         int trackH = viewHeight;
         int thumbHeight = Math.max(16, trackH * trackH / (trackH + maxScroll));
         int thumbY = y + (scroll * (trackH - thumbHeight)) / Math.max(1, maxScroll);
-        GuiComponent.fill(poseStack, x, thumbY, x + SCROLLBAR_WIDTH, thumbY + thumbHeight, 0x90FFFFFF);
+        GuiComponent.fill(poseStack, x, thumbY, x + SCROLLBAR_WIDTH, thumbY + thumbHeight, MenuCustomizationConfig.scrollbarThumb());
     }
 
     private void selectFirstVisibleQuest() {
@@ -532,15 +582,18 @@ public class QuestScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        // Курсор переводится из экранных координат в виртуальные координаты окна.
+        double localX = (mouseX - this.originX) / this.uiScale;
+        double localY = (mouseY - this.originY) / this.uiScale;
         if (button == 0) {
             // Переключение вкладок.
-            int tabX = this.winLeft + (WIN_W - (TAB_W * 3 + TAB_GAP * 2)) / 2;
-            int tabY = this.winTop + TAB_Y;
-            if (mouseY >= tabY && mouseY <= tabY + TAB_H) {
+            int tabX = (WIN_W - (TAB_W * 3 + TAB_GAP * 2)) / 2;
+            int tabY = TAB_Y;
+            if (localY >= tabY && localY <= tabY + TAB_H) {
                 QuestTab[] tabs = QuestTab.values();
                 for (int i = 0; i < tabs.length; i++) {
                     int x = tabX + i * (TAB_W + TAB_GAP);
-                    if (mouseX >= x && mouseX <= x + TAB_W) {
+                    if (localX >= x && localX <= x + TAB_W) {
                         switchTab(tabs[i]);
                         return true;
                     }
@@ -548,12 +601,12 @@ public class QuestScreen extends Screen {
             }
 
             // Выбор квеста в списке.
-            int listX = this.winLeft + LIST_X;
-            int listY = this.winTop + LIST_Y;
+            int listX = LIST_X;
+            int listY = LIST_Y;
             int viewH = listViewportHeight();
-            if (mouseX >= listX && mouseX <= listX + LIST_W && mouseY >= listY && mouseY <= listY + viewH) {
+            if (localX >= listX && localX <= listX + LIST_W && localY >= listY && localY <= listY + viewH) {
                 List<QuestData> filtered = getFilteredQuests();
-                int index = (int) ((mouseY - listY + listScroll) / ROW_HEIGHT);
+                int index = (int) ((localY - listY + listScroll) / ROW_HEIGHT);
                 if (index >= 0 && index < filtered.size()) {
                     selectedQuest = filtered.get(index);
                     this.detailsScroll = 0;
@@ -563,7 +616,7 @@ public class QuestScreen extends Screen {
 
             // Клик по задаче - развернуть/свернуть описание.
             if (selectedQuest != null) {
-                Integer clickedIndex = hitTestDetailsBody(mouseX, mouseY, selectedQuest);
+                Integer clickedIndex = hitTestDetailsBody(localX, localY, selectedQuest);
                 if (clickedIndex != null && clickedIndex >= 0 && clickedIndex < selectedQuest.getTasks().size()) {
                     QuestTask task = selectedQuest.getTasks().get(clickedIndex);
                     expandedDescriptions.put(task.getId(),
@@ -581,11 +634,11 @@ public class QuestScreen extends Screen {
      * во время замера).
      */
     private Integer hitTestDetailsBody(double mouseX, double mouseY, QuestData quest) {
-        int dx = this.winLeft + DETAILS_X;
-        int dy = this.winTop + LIST_Y;
-        int dw = this.winLeft + WIN_W - 12 - dx;
+        int dx = DETAILS_X;
+        int dy = LIST_Y;
+        int dw = WIN_W - 12 - dx;
         int bodyTop = dy + DETAILS_GAP_TOP;
-        int bodyBottom = this.winTop + WIN_H - DETAILS_BOTTOM_INSET;
+        int bodyBottom = WIN_H - DETAILS_BOTTOM_INSET;
         if (mouseX < dx || mouseX > dx + dw || mouseY < bodyTop || mouseY > bodyBottom) {
             return null;
         }
@@ -616,10 +669,13 @@ public class QuestScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
-        int listX = this.winLeft + LIST_X;
-        int listY = this.winTop + LIST_Y;
+        // Курсор переводится из экранных координат в виртуальные координаты окна.
+        double localX = (mouseX - this.originX) / this.uiScale;
+        double localY = (mouseY - this.originY) / this.uiScale;
+        int listX = LIST_X;
+        int listY = LIST_Y;
         int viewH = listViewportHeight();
-        if (mouseX >= listX && mouseX <= listX + LIST_W && mouseY >= listY && mouseY <= listY + viewH) {
+        if (localX >= listX && localX <= listX + LIST_W && localY >= listY && localY <= listY + viewH) {
             int contentHeight = getFilteredQuests().size() * ROW_HEIGHT;
             int maxScroll = Math.max(0, contentHeight - viewH);
             listScroll = clamp(listScroll - (int) (delta * ROW_HEIGHT * 1.5), 0, maxScroll);
@@ -627,11 +683,11 @@ public class QuestScreen extends Screen {
         }
 
         if (selectedQuest != null) {
-            int dx = this.winLeft + DETAILS_X;
-            int dw = this.winLeft + WIN_W - 12 - dx;
-            int bodyTop = this.winTop + LIST_Y + DETAILS_GAP_TOP;
-            int bodyBottom = this.winTop + WIN_H - DETAILS_BOTTOM_INSET;
-            if (mouseX >= dx && mouseX <= dx + dw && mouseY >= bodyTop && mouseY <= bodyBottom) {
+            int dx = DETAILS_X;
+            int dw = WIN_W - 12 - dx;
+            int bodyTop = LIST_Y + DETAILS_GAP_TOP;
+            int bodyBottom = WIN_H - DETAILS_BOTTOM_INSET;
+            if (localX >= dx && localX <= dx + dw && localY >= bodyTop && localY <= bodyBottom) {
                 QuestStatus st = QuestClientState.getStatuses()
                         .getOrDefault(selectedQuest.getId(), QuestStatus.NOT_STARTED);
                 int bodyH = bodyBottom - bodyTop;
@@ -703,19 +759,19 @@ public class QuestScreen extends Screen {
     }
 
     private enum QuestTab {
-        ACTIVE("Активные", QuestStatus.ACTIVE, STATUS_ACTIVE_ICON, "Нет активных квестов"),
-        COMPLETED("Выполненные", QuestStatus.COMPLETED, STATUS_COMPLETED_ICON, "Нет выполненных квестов"),
-        FAILED("Проваленные", QuestStatus.FAILED, STATUS_FAILED_ICON, "Нет проваленных квестов");
+        ACTIVE("Активные", QuestStatus.ACTIVE, "status_active", "Нет активных квестов"),
+        COMPLETED("Выполненные", QuestStatus.COMPLETED, "status_completed", "Нет выполненных квестов"),
+        FAILED("Проваленные", QuestStatus.FAILED, "status_failed", "Нет проваленных квестов");
 
         private final String title;
         private final QuestStatus status;
-        private final ResourceLocation icon;
+        private final String iconId;
         private final String emptyMessage;
 
-        QuestTab(String title, QuestStatus status, ResourceLocation icon, String emptyMessage) {
+        QuestTab(String title, QuestStatus status, String iconId, String emptyMessage) {
             this.title = title;
             this.status = status;
-            this.icon = icon;
+            this.iconId = iconId;
             this.emptyMessage = emptyMessage;
         }
 
@@ -724,8 +780,8 @@ public class QuestScreen extends Screen {
             return st == this.status;
         }
 
-        private ResourceLocation icon() {
-            return icon;
+        private ResourceLocation iconLocation() {
+            return MenuAssetsManager.get(iconId);
         }
 
         private String emptyMessage() {
@@ -780,12 +836,13 @@ public class QuestScreen extends Screen {
             }
 
             RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
-            RenderSystem.setShaderTexture(0, WIDGETS_TEXTURE);
+            RenderSystem.setShaderTexture(0, MenuAssetsManager.get("quest_widgets"));
             blit(poseStack, this.x, this.y, this.width, this.height,
                     u, v, stateWidth, stateHeight, TEXTURE_SIZE, TEXTURE_SIZE);
 
             if (!this.getMessage().getString().isEmpty()) {
-                int color = selected ? 0xFFF6D57A : (this.isHovered ? 0xFFFFFFFF : 0xFFE0E0E0);
+                int color = selected ? MenuCustomizationConfig.accent()
+                        : (this.isHovered ? MenuCustomizationConfig.buttonHover() : MenuCustomizationConfig.buttonIdle());
                 drawCenteredString(poseStack, Minecraft.getInstance().font, this.getMessage(),
                         this.x + this.width / 2, this.y + (this.height - 8) / 2, color);
             }

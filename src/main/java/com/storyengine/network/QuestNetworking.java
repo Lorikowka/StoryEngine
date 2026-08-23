@@ -1,6 +1,7 @@
 package com.storyengine.network;
 
 import com.storyengine.StoryEngineMod;
+import com.storyengine.client.MenuAssetsManager;
 import com.storyengine.player.PlayerQuestDataCapability;
 import com.storyengine.quest.BlockBreakQuestTask;
 import com.storyengine.quest.ItemQuestTask;
@@ -40,6 +41,7 @@ public final class QuestNetworking {
     private static int packetId = 0;
     // Id 2 и 3 заняты в NarrativeNetworking.java (тот же CHANNEL) - см. тот класс.
     private static final int TOAST_PACKET_ID = 4;
+    private static final int MENU_RESET_PACKET_ID = 5;
 
     private QuestNetworking() {
     }
@@ -48,6 +50,12 @@ public final class QuestNetworking {
         CHANNEL.registerMessage(packetId++, S2CSyncQuestDataPacket.class, S2CSyncQuestDataPacket::encode, S2CSyncQuestDataPacket::decode, S2CSyncQuestDataPacket::handle);
         CHANNEL.registerMessage(packetId++, S2CQuestStatusMessagePacket.class, S2CQuestStatusMessagePacket::encode, S2CQuestStatusMessagePacket::decode, S2CQuestStatusMessagePacket::handle);
         CHANNEL.registerMessage(TOAST_PACKET_ID, S2CQuestToastPacket.class, S2CQuestToastPacket::encode, S2CQuestToastPacket::decode, S2CQuestToastPacket::handle);
+        CHANNEL.registerMessage(MENU_RESET_PACKET_ID, S2CMenuAssetsResetPacket.class, S2CMenuAssetsResetPacket::encode, S2CMenuAssetsResetPacket::decode, S2CMenuAssetsResetPacket::handle);
+    }
+
+    /** Сброс кэша текстур меню на всех клиентах (после /storymenu reset|reload). */
+    public static void sendMenuAssetsReset() {
+        CHANNEL.send(PacketDistributor.ALL.noArg(), new S2CMenuAssetsResetPacket());
     }
 
     public static void sendQuestStatusMessage(ServerPlayer player, String text) {
@@ -363,6 +371,31 @@ public final class QuestNetworking {
                     // чтобы декодирование не падало на новых типах со старого клиента.
                     return new ManualQuestTask(id, title, description);
             }
+        }
+    }
+
+    /**
+     * S2C-пакет сброса кэша текстур меню на клиенте. Отправляется командой
+     * /storymenu reset|reload, чтобы изменения PNG в config/story_engine/menu/
+     * подхватились без перезапуска клиента.
+     */
+    public static final class S2CMenuAssetsResetPacket {
+        public static void encode(S2CMenuAssetsResetPacket packet, FriendlyByteBuf buffer) {
+            // Пакет без полезной нагрузки.
+        }
+
+        public static S2CMenuAssetsResetPacket decode(FriendlyByteBuf buffer) {
+            return new S2CMenuAssetsResetPacket();
+        }
+
+        public static void handle(S2CMenuAssetsResetPacket packet, Supplier<net.minecraftforge.network.NetworkEvent.Context> contextSupplier) {
+            net.minecraftforge.network.NetworkEvent.Context context = contextSupplier.get();
+            context.enqueueWork(() -> {
+                if (context.getDirection() == NetworkDirection.PLAY_TO_CLIENT) {
+                    MenuAssetsManager.clearCache();
+                }
+            });
+            context.setPacketHandled(true);
         }
     }
 }

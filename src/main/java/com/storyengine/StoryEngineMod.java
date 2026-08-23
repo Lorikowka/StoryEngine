@@ -1,6 +1,7 @@
 package com.storyengine;
 
 import com.mojang.logging.LogUtils;
+import com.storyengine.client.MenuCustomizationConfig;
 import com.storyengine.network.NarrativeNetworking;
 import com.storyengine.network.QuestNetworking;
 import com.storyengine.quest.QuestManager;
@@ -10,6 +11,8 @@ import net.minecraftforge.event.server.ServerStartingEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.ModLoadingContext;
+import net.minecraftforge.fml.config.ModConfig;
 import org.slf4j.Logger;
 
 /**
@@ -31,6 +34,7 @@ public class StoryEngineMod {
     public StoryEngineMod() {
         QuestNetworking.register();
         NarrativeNetworking.register();
+        ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, MenuCustomizationConfig.SPEC);
         MinecraftForge.EVENT_BUS.register(this);
         MinecraftForge.EVENT_BUS.register(new QuestProgressTracker());
         LOGGER.info("[StoryEngine] Мод инициализирован, модуль квестов активен.");
