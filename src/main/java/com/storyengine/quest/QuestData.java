@@ -3,6 +3,8 @@ package com.storyengine.quest;
 import java.util.ArrayList;
 import java.util.List;
 
+import javax.annotation.Nullable;
+
 /**
  * Модель квеста, загружаемая из config/story_engine/quests/&lt;id&gt;.json
  *
@@ -20,6 +22,7 @@ public class QuestData {
 
     private String id;
     private String title;
+    private String author;
     private String description;
     private List<String> prerequisites = new ArrayList<>();
     private List<QuestTask> tasks = new ArrayList<>();
@@ -43,6 +46,16 @@ public class QuestData {
 
     public void setTitle(String title) {
         this.title = title;
+    }
+
+    /** Автор квеста (для сюжета - например, имя NPC-заказчика). Может быть null. */
+    @Nullable
+    public String getAuthor() {
+        return author;
+    }
+
+    public void setAuthor(@Nullable String author) {
+        this.author = author;
     }
 
     public String getDescription() {
@@ -82,6 +95,6 @@ public class QuestData {
 
     @Override
     public String toString() {
-        return "QuestData{id='" + id + "', title='" + title + "', tasks=" + getTasks().size() + "}";
+        return "QuestData{id='" + id + "', title='" + title + "', author='" + author + "', tasks=" + getTasks().size() + "}";
     }
 }

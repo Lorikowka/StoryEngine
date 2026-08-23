@@ -29,7 +29,7 @@ import java.util.function.Supplier;
 
 public final class QuestNetworking {
 
-    private static final String PROTOCOL_VERSION = "1";
+    private static final String PROTOCOL_VERSION = "2";
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(StoryEngineMod.MOD_ID, "main"),
             () -> PROTOCOL_VERSION,
@@ -187,6 +187,12 @@ public final class QuestNetworking {
                 buffer.writeUtf(quest.getId());
                 buffer.writeUtf(quest.getTitle());
                 buffer.writeUtf(quest.getDescription());
+                String author = quest.getAuthor();
+                boolean hasAuthor = author != null && !author.isEmpty();
+                buffer.writeBoolean(hasAuthor);
+                if (hasAuthor) {
+                    buffer.writeUtf(author);
+                }
                 buffer.writeInt(quest.getTasks().size());
                 for (QuestTask task : quest.getTasks()) {
                     encodeTask(buffer, task);
@@ -230,6 +236,9 @@ public final class QuestNetworking {
                 quest.setId(buffer.readUtf());
                 quest.setTitle(buffer.readUtf());
                 quest.setDescription(buffer.readUtf());
+                if (buffer.readBoolean()) {
+                    quest.setAuthor(buffer.readUtf());
+                }
                 int taskSize = buffer.readInt();
                 List<QuestTask> tasks = new ArrayList<>();
                 for (int j = 0; j < taskSize; j++) {
