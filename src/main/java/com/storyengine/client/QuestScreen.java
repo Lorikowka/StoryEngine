@@ -218,8 +218,9 @@ public class QuestScreen extends Screen {
     private void drawWindow(PoseStack poseStack) {
         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
         RenderSystem.setShaderTexture(0, MenuAssetsManager.get("quest_menu"));
+        // Текстура quest_menu.png теперь 520x340 (1:1 с окном) - блитим без искажения.
         blit(poseStack, 0, 0, WIN_W, WIN_H,
-                0.0F, 0.0F, TEXTURE_SIZE, TEXTURE_SIZE, TEXTURE_SIZE, TEXTURE_SIZE);
+                0.0F, 0.0F, WIN_W, WIN_H, WIN_W, WIN_H);
 
         GuiComponent.fill(poseStack,
                 INSET, INSET,
