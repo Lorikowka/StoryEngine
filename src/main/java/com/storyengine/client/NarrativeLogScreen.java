@@ -154,8 +154,7 @@ public class NarrativeLogScreen extends Screen {
     }
 
     private void drawHeader(PoseStack poseStack, float alpha) {
-        TextureBlitHelper.fillBox(poseStack, winX, winY, winX + winW, winY + HEADER_H, fade(MenuCustomizationConfig.logHeaderFill(), alpha));
-        TextureBlitHelper.fillBox(poseStack, winX, winY, winX + winW, winY + 2, fade(MenuCustomizationConfig.logAccentLine(), alpha));
+        drawBar(poseStack, "narrative_header", winX, winY, winW, HEADER_H, MenuCustomizationConfig.logHeaderFill(), alpha);
 
         String title = "Сюжетный чат";
         int tx = winX + (winW - this.font.width(title)) / 2;
@@ -166,12 +165,25 @@ public class NarrativeLogScreen extends Screen {
 
     private void drawFooter(PoseStack poseStack, float alpha) {
         int fy = winY + winH - FOOTER_H;
-        TextureBlitHelper.fillBox(poseStack, winX, fy, winX + winW, winY + winH, fade(MenuCustomizationConfig.logFooterFill(), alpha));
-        TextureBlitHelper.fillBox(poseStack, winX, winY + winH - 2, winX + winW, winY + winH, fade(MenuCustomizationConfig.logAccentLine(), alpha));
+        drawBar(poseStack, "narrative_footer", winX, fy, winW, FOOTER_H, MenuCustomizationConfig.logFooterFill(), alpha);
 
         String hint = "Колесо мыши — прокрутка";
         int hx = winX + (winW - this.font.width(hint)) / 2;
         this.font.drawShadow(poseStack, hint, hx, fy + (FOOTER_H - 9) / 2, fade(MenuCustomizationConfig.logHintColor(), alpha));
+    }
+
+    /** Рисует горизонтальный бар (шапку/подвал) из кастомизируемой текстуры, растянутой на весь прямоугольник. */
+    private void drawBar(PoseStack poseStack, String texId, int x, int y, int w, int h, int baseColor, float alpha) {
+        // Цвет-подложка на случай, если кастомная текстура прозрачная.
+        TextureBlitHelper.fillBox(poseStack, x, y, x + w, y + h, fade(baseColor, alpha));
+
+        ResourceLocation tex = MenuAssetsManager.get(texId);
+        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, alpha);
+        RenderSystem.setShaderTexture(0, tex);
+        // uWidth==textureWidth и vHeight==textureHeight растягивают ВСЮ текстуру на прямоугольник
+        // независимо от её родного разрешения.
+        this.blit(poseStack, x, y, w, h, 0.0F, 0.0F, w, h, w, h);
+        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
     }
 
     /**
