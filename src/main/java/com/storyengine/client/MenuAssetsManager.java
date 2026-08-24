@@ -67,7 +67,7 @@ public final class MenuAssetsManager {
 
     /** Размеры атласа gui_atlas.png (фиксированная раскладка, см. ATLAS_REGIONS). */
     public static final int ATLAS_W = 360;
-    public static final int ATLAS_H = 88;
+    public static final int ATLAS_H = 124;
 
     /**
      * Фиксированная раскладка атласа: id -> {u, v, w, h} в пикселях gui_atlas.png.
@@ -81,6 +81,7 @@ public final class MenuAssetsManager {
         ATLAS_REGIONS.put("quest_icon", new int[]{96, 0, 32, 32});
         ATLAS_REGIONS.put("narrative_header", new int[]{0, 32, 360, 30});
         ATLAS_REGIONS.put("narrative_footer", new int[]{0, 62, 360, 26});
+        ATLAS_REGIONS.put("quest_toast", new int[]{0, 88, 220, 36});
     }
 
     /** Встроенные исходники для сборки дефолтного атласа (читаются из ресурсов мода). */
@@ -92,6 +93,7 @@ public final class MenuAssetsManager {
         ATLAS_SOURCES.put("quest_icon", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/quest_icon.png"));
         ATLAS_SOURCES.put("narrative_header", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/narrative_header.png"));
         ATLAS_SOURCES.put("narrative_footer", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/narrative_footer.png"));
+        ATLAS_SOURCES.put("quest_toast", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/quest_toast.png"));
     }
 
     private static final Map<String, ResourceLocation> LOADED = new HashMap<>();
@@ -165,14 +167,18 @@ public final class MenuAssetsManager {
         if (atlasLocation != null) {
             return;
         }
-        // Кастомный атлас из config, если включено и файл есть.
+        // Кастомный атлас из config, если включено и файл подходящего размера.
         if (MenuCustomizationConfig.enabled()) {
             Path file = getMenuDirectory().resolve("gui_atlas.png");
             if (Files.isRegularFile(file)) {
                 try (InputStream stream = Files.newInputStream(file)) {
                     NativeImage img = NativeImage.read(stream);
-                    atlasLocation = registerAtlas(img);
-                    return;
+                    if (img.getWidth() == ATLAS_W && img.getHeight() == ATLAS_H) {
+                        atlasLocation = registerAtlas(img);
+                        return;
+                    }
+                    LOGGER.warn("[StoryEngine] gui_atlas.png имеет размер {}x{}, ожидается {}x{} — используем встроенный атлас",
+                            img.getWidth(), img.getHeight(), ATLAS_W, ATLAS_H);
                 } catch (IOException | RuntimeException e) {
                     LOGGER.error("[StoryEngine] gui_atlas.png повреждён, используем встроенный атлас", e);
                 }

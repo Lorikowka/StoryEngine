@@ -2,9 +2,11 @@ package com.storyengine.client;
 
 import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.storyengine.StoryEngineMod;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiComponent;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.RenderGuiOverlayEvent;
 import net.minecraftforge.client.gui.overlay.VanillaGuiOverlay;
@@ -110,8 +112,12 @@ public final class QuestToastOverlay {
     }
 
     private static void drawToast(PoseStack poseStack, Font font, String title, String text, int x, int y, float alpha) {
-        TextureBlitHelper.fillBox(poseStack, x, y, x + WIDTH, y + HEIGHT, withAlpha(BACKGROUND_RGB, alpha * 0.85F));
-        TextureBlitHelper.fillBox(poseStack, x, y, x + 3, y + HEIGHT, withAlpha(ACCENT_RGB, alpha));
+        // Фон тоста - кастомизируемая текстура из gui_atlas.png (регион quest_toast).
+        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, alpha);
+        RenderSystem.setShaderTexture(0, MenuAssetsManager.get("quest_toast"));
+        int[] reg = MenuAssetsManager.getRegion("quest_toast");
+        GuiComponent.blit(poseStack, x, y, WIDTH, HEIGHT, reg[0], reg[1], reg[2], reg[3], MenuAssetsManager.ATLAS_W, MenuAssetsManager.ATLAS_H);
+        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
 
         int titleColor = withAlpha(TITLE_RGB, alpha);
         int textColor = withAlpha(TEXT_RGB, alpha);
