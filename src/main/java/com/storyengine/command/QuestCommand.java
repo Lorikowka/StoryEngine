@@ -352,7 +352,7 @@ public final class QuestCommand {
 
         QuestData quest = questOpt.get();
         PlayerQuestDataHelper.setStatus(player, questId, QuestStatus.COMPLETED);
-        com.storyengine.network.QuestNetworking.sendQuestStatusMessage(player, "Квест '" + questId + "' выполнен");
+        com.storyengine.network.QuestNetworking.sendQuestStatusMessage(player, "Квест '" + quest.getTitle() + "' выполнен");
         com.storyengine.network.QuestNetworking.syncToPlayer(player);
 
         // Выполняем команды награды от имени сервера, в контексте игрока
@@ -383,13 +383,15 @@ public final class QuestCommand {
         ServerPlayer player = EntityArgument.getPlayer(ctx, "player");
         String questId = StringArgumentType.getString(ctx, "id");
 
-        if (!StoryEngineMod.QUEST_MANAGER.exists(questId)) {
+        var questOpt = StoryEngineMod.QUEST_MANAGER.getQuest(questId);
+        if (questOpt.isEmpty()) {
             source.sendFailure(Component.literal("Квест '" + questId + "' не найден."));
             return 0;
         }
+        QuestData quest = questOpt.get();
 
         PlayerQuestDataHelper.setStatus(player, questId, QuestStatus.FAILED);
-        com.storyengine.network.QuestNetworking.sendQuestStatusMessage(player, "Квест '" + questId + "' провален");
+        com.storyengine.network.QuestNetworking.sendQuestStatusMessage(player, "Квест '" + quest.getTitle() + "' провален");
         com.storyengine.network.QuestNetworking.syncToPlayer(player);
         source.sendSuccess(Component.literal(
                 "Квест '" + questId + "' переведён в статус FAILED у игрока " + player.getName().getString()
@@ -425,7 +427,11 @@ public final class QuestCommand {
         }
 
         PlayerQuestDataHelper.completeTask(player, questId, taskId);
-        com.storyengine.network.QuestNetworking.sendQuestStatusMessage(player, "Подзадача '" + taskId + "' выполнена");
+        String taskTitle = quest.getTasks().stream()
+                .filter(t -> t.getId().equals(taskId))
+                .map(com.storyengine.quest.QuestTask::getTitle)
+                .findFirst().orElse(taskId);
+        com.storyengine.network.QuestNetworking.sendQuestStatusMessage(player, "Подзадача '" + taskTitle + "' выполнена");
 
         // Если это была последняя незавершённая задача - завершаем и сам квест.
         // Трекер сделал бы то же самое на следующем тике, но не будем ждать.
