@@ -40,21 +40,8 @@ public class NarrativeLogScreen extends Screen {
 
     private static final int ANIM_MS = 350;
 
-    // === Синие акценты (только шапка и подвал) ===
-    private static final int HEADER_FILL = 0xFF27406B;
-    private static final int FOOTER_FILL = 0xFF27406B;
-    private static final int ACCENT_LINE = 0xFF4F7BC4;
-
-    private static final int FEED_FILL = 0xCC0E1218;
-    /** Полупрозрачная подложка за строкой - как в обычном чате (textBackgroundOpacity 0.5). */
-    private static final int CHAT_LINE_BG = 0x80000000;
-    private static final int TEXT_TITLE = 0xFFFFFFFF;
-    private static final int TEXT_HINT = 0xBFD4EE;
-    private static final int TEXT_EMPTY = 0x88A6C8;
-    private static final int TEXT_BODY = 0xFFFFFFFF;
-
-    private static final int SCROLL_TRACK = 0x30FFFFFF;
-    private static final int SCROLL_THUMB = 0x90FFFFFF;
+    // Цвета шапки/подвала/ленты/скроллбара берутся из MenuCustomizationConfig
+    // (секция narrativeLogCustomization), как и у остальных GUI мода.
 
     /** Прокрутка в пикселях от самого низа истории (0 = видим последнее сообщение). */
     private int scrollOffset;
@@ -123,7 +110,7 @@ public class NarrativeLogScreen extends Screen {
         drawHeader(poseStack, alpha);
         drawFooter(poseStack, alpha);
 
-        TextureBlitHelper.fillBox(poseStack, panelLeft, panelTop, panelRight, panelBottom, fade(FEED_FILL, alpha));
+        TextureBlitHelper.fillBox(poseStack, panelLeft, panelTop, panelRight, panelBottom, fade(MenuCustomizationConfig.logFeedFill(), alpha));
 
         enableScissor(feedLeft, feedTop, feedRight, feedBottom);
         drawHistory(poseStack, alpha);
@@ -167,24 +154,24 @@ public class NarrativeLogScreen extends Screen {
     }
 
     private void drawHeader(PoseStack poseStack, float alpha) {
-        TextureBlitHelper.fillBox(poseStack, winX, winY, winX + winW, winY + HEADER_H, fade(HEADER_FILL, alpha));
-        TextureBlitHelper.fillBox(poseStack, winX, winY, winX + winW, winY + 2, fade(ACCENT_LINE, alpha));
+        TextureBlitHelper.fillBox(poseStack, winX, winY, winX + winW, winY + HEADER_H, fade(MenuCustomizationConfig.logHeaderFill(), alpha));
+        TextureBlitHelper.fillBox(poseStack, winX, winY, winX + winW, winY + 2, fade(MenuCustomizationConfig.logAccentLine(), alpha));
 
         String title = "Сюжетный чат";
         int tx = winX + (winW - this.font.width(title)) / 2;
-        this.font.drawShadow(poseStack, title, tx, winY + (HEADER_H - 9) / 2, fade(TEXT_TITLE, alpha));
+        this.font.drawShadow(poseStack, title, tx, winY + (HEADER_H - 9) / 2, fade(MenuCustomizationConfig.logTitleColor(), alpha));
 
-        this.font.drawShadow(poseStack, "×", winX + winW - 22, winY + (HEADER_H - 9) / 2, fade(TEXT_TITLE, alpha));
+        this.font.drawShadow(poseStack, "×", winX + winW - 22, winY + (HEADER_H - 9) / 2, fade(MenuCustomizationConfig.logTitleColor(), alpha));
     }
 
     private void drawFooter(PoseStack poseStack, float alpha) {
         int fy = winY + winH - FOOTER_H;
-        TextureBlitHelper.fillBox(poseStack, winX, fy, winX + winW, winY + winH, fade(FOOTER_FILL, alpha));
-        TextureBlitHelper.fillBox(poseStack, winX, winY + winH - 2, winX + winW, winY + winH, fade(ACCENT_LINE, alpha));
+        TextureBlitHelper.fillBox(poseStack, winX, fy, winX + winW, winY + winH, fade(MenuCustomizationConfig.logFooterFill(), alpha));
+        TextureBlitHelper.fillBox(poseStack, winX, winY + winH - 2, winX + winW, winY + winH, fade(MenuCustomizationConfig.logAccentLine(), alpha));
 
         String hint = "Колесо мыши — прокрутка";
         int hx = winX + (winW - this.font.width(hint)) / 2;
-        this.font.drawShadow(poseStack, hint, hx, fy + (FOOTER_H - 9) / 2, fade(TEXT_HINT, alpha));
+        this.font.drawShadow(poseStack, hint, hx, fy + (FOOTER_H - 9) / 2, fade(MenuCustomizationConfig.logHintColor(), alpha));
     }
 
     /**
@@ -216,7 +203,7 @@ public class NarrativeLogScreen extends Screen {
             int msgW = this.font.width(msg);
             int sx = Math.max(feedLeft, feedLeft + (feedRight - feedLeft - msgW) / 2);
             int sy = (feedTop + feedBottom - 9) / 2;
-            this.font.drawShadow(poseStack, msg, sx, sy, fade(TEXT_EMPTY, alpha));
+            this.font.drawShadow(poseStack, msg, sx, sy, fade(MenuCustomizationConfig.logEmptyColor(), alpha));
             return;
         }
 
@@ -262,7 +249,7 @@ public class NarrativeLogScreen extends Screen {
         }
 
         for (FormattedCharSequence line : lines) {
-            drawChatLine(poseStack, line, textX, lineY, LINE_HEIGHT, TEXT_BODY, alpha);
+            drawChatLine(poseStack, line, textX, lineY, LINE_HEIGHT, MenuCustomizationConfig.logBodyColor(), alpha);
             lineY += LINE_HEIGHT;
         }
     }
@@ -274,7 +261,7 @@ public class NarrativeLogScreen extends Screen {
     private void drawChatLine(PoseStack poseStack, FormattedCharSequence line, int x, int y, int lineH, int color, float alpha) {
         int w = this.font.width(line);
         int pad = 2;
-        TextureBlitHelper.fillBox(poseStack, x - pad, y - 1, x + w + pad + 1, y + lineH, fade(CHAT_LINE_BG, alpha));
+        TextureBlitHelper.fillBox(poseStack, x - pad, y - 1, x + w + pad + 1, y + lineH, fade(MenuCustomizationConfig.logChatLineBackground(), alpha));
         this.font.drawShadow(poseStack, line, x, y, fade(color, alpha));
     }
 
@@ -283,8 +270,8 @@ public class NarrativeLogScreen extends Screen {
         int thumbH = Math.max(16, trackH * trackH / (trackH + maxScroll));
         // Бегунок внизу = смотрим самые новые (scrollOffset=0), вверху = старая история.
         int thumbY = feedTop + ((maxScroll - scrollOffset) * (trackH - thumbH)) / Math.max(1, maxScroll);
-        TextureBlitHelper.fillBox(poseStack, scrollbarX, feedTop, scrollbarX + SCROLLBAR_W, feedBottom, fade(SCROLL_TRACK, alpha));
-        TextureBlitHelper.fillBox(poseStack, scrollbarX, thumbY, scrollbarX + SCROLLBAR_W, thumbY + thumbH, fade(SCROLL_THUMB, alpha));
+        TextureBlitHelper.fillBox(poseStack, scrollbarX, feedTop, scrollbarX + SCROLLBAR_W, feedBottom, fade(MenuCustomizationConfig.logScrollbarTrack(), alpha));
+        TextureBlitHelper.fillBox(poseStack, scrollbarX, thumbY, scrollbarX + SCROLLBAR_W, thumbY + thumbH, fade(MenuCustomizationConfig.logScrollbarThumb(), alpha));
     }
 
     private static float clamp01(float v) {

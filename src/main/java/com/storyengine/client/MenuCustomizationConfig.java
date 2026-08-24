@@ -42,6 +42,19 @@ public final class MenuCustomizationConfig {
     public static final ForgeConfigSpec.IntValue SCROLLBAR_TRACK;
     public static final ForgeConfigSpec.IntValue SCROLLBAR_THUMB;
 
+    // === Окно истории сюжетного чата (NarrativeLogScreen) ===
+    public static final ForgeConfigSpec.IntValue LOG_HEADER_FILL;
+    public static final ForgeConfigSpec.IntValue LOG_FOOTER_FILL;
+    public static final ForgeConfigSpec.IntValue LOG_ACCENT_LINE;
+    public static final ForgeConfigSpec.IntValue LOG_TITLE_COLOR;
+    public static final ForgeConfigSpec.IntValue LOG_HINT_COLOR;
+    public static final ForgeConfigSpec.IntValue LOG_FEED_FILL;
+    public static final ForgeConfigSpec.IntValue LOG_CHAT_LINE_BG;
+    public static final ForgeConfigSpec.IntValue LOG_BODY_COLOR;
+    public static final ForgeConfigSpec.IntValue LOG_EMPTY_COLOR;
+    public static final ForgeConfigSpec.IntValue LOG_SCROLLBAR_TRACK;
+    public static final ForgeConfigSpec.IntValue LOG_SCROLLBAR_THUMB;
+
     // === Масштаб/шрифт ===
     public static final ForgeConfigSpec.DoubleValue UI_SCALE_OVERRIDE;
     public static final ForgeConfigSpec.DoubleValue FONT_SCALE;
@@ -176,6 +189,20 @@ public final class MenuCustomizationConfig {
         DIALOGUE_RESPONSE_DISABLED_TEXT = color("text", 0x777777, "Текст заблокированного варианта (серый).");
         BUILDER.pop();
 
+        BUILDER.pop();
+
+        BUILDER.comment("Настройки окна истории сюжетного чата (NarrativeLogScreen): шапка/подвал, лента, скроллбар.").push("narrativeLogCustomization");
+        LOG_HEADER_FILL = color("headerFill", 0xFF27406B, "Заливка синей шапки сверху (ARGB).");
+        LOG_FOOTER_FILL = color("footerFill", 0xFF27406B, "Заливка синего подвала снизу (ARGB).");
+        LOG_ACCENT_LINE = color("accentLine", 0xFF4F7BC4, "Тонкая акцентная линия под шапкой и над подвалом.");
+        LOG_TITLE_COLOR = color("titleColor", 0xFFFFFFFF, "Цвет заголовка 'Сюжетный чат'.");
+        LOG_HINT_COLOR = color("hintColor", 0xBFD4EE, "Цвет подсказки прокрутки в подвале.");
+        LOG_FEED_FILL = color("feedFill", 0xCC0E1218, "Фон ленты сообщений.");
+        LOG_CHAT_LINE_BG = color("chatLineBackground", 0x80000000, "Подложка за строкой сообщения (как в обычном чате).");
+        LOG_BODY_COLOR = color("bodyColor", 0xFFFFFFFF, "Цвет текста сообщения.");
+        LOG_EMPTY_COLOR = color("emptyColor", 0x88A6C8, "Цвет сообщения пустого состояния.");
+        LOG_SCROLLBAR_TRACK = color("scrollbarTrack", 0x30FFFFFF, "Трек скроллбара.");
+        LOG_SCROLLBAR_THUMB = color("scrollbarThumb", 0x90FFFFFF, "Бегунок скроллбара.");
         BUILDER.pop();
 
         BUILDER.pop();
@@ -375,6 +402,51 @@ public final class MenuCustomizationConfig {
 
     public static int dialogueResponseDisabledText() {
         return DIALOGUE_RESPONSE_DISABLED_TEXT.get();
+    }
+
+    // === Окно истории сюжетного чата (NarrativeLogScreen) ===
+    public static int logHeaderFill() {
+        return LOG_HEADER_FILL.get();
+    }
+
+    public static int logFooterFill() {
+        return LOG_FOOTER_FILL.get();
+    }
+
+    public static int logAccentLine() {
+        return LOG_ACCENT_LINE.get();
+    }
+
+    public static int logTitleColor() {
+        return LOG_TITLE_COLOR.get();
+    }
+
+    public static int logHintColor() {
+        return LOG_HINT_COLOR.get();
+    }
+
+    public static int logFeedFill() {
+        return LOG_FEED_FILL.get();
+    }
+
+    public static int logChatLineBackground() {
+        return LOG_CHAT_LINE_BG.get();
+    }
+
+    public static int logBodyColor() {
+        return LOG_BODY_COLOR.get();
+    }
+
+    public static int logEmptyColor() {
+        return LOG_EMPTY_COLOR.get();
+    }
+
+    public static int logScrollbarTrack() {
+        return LOG_SCROLLBAR_TRACK.get();
+    }
+
+    public static int logScrollbarThumb() {
+        return LOG_SCROLLBAR_THUMB.get();
     }
 
     private MenuCustomizationConfig() {
