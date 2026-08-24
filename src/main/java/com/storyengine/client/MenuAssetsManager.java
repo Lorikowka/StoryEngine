@@ -53,8 +53,6 @@ public final class MenuAssetsManager {
         DEFAULTS.put("status_failed", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/status_failed.png"));
         // Иконка по умолчанию для голов/портретов NPC - тоже кастомизируемая.
         DEFAULTS.put("default_head", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/default_head.png"));
-        // Рамка окна истории сюжетного чата (аналог quest_menu.png).
-        DEFAULTS.put("narrative_log", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/narrative_log.png"));
     }
 
     private static final Map<String, ResourceLocation> LOADED = new HashMap<>();

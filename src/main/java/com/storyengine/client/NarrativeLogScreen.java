@@ -2,7 +2,6 @@ package com.storyengine.client;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.storyengine.client.MenuAssetsManager;
 import com.storyengine.narrative.NarrativeChatManager;
 import com.storyengine.narrative.NarrativeMessage;
 import net.minecraft.Util;
@@ -24,7 +23,8 @@ import java.util.List;
  * Оформление: узкое (~360px) центрированное окно-лента. Синие элементы -
  * только сверху (шапка с заголовком и кнопкой закрытия) и снизу (подвал с
  * подсказкой). Между ними - тёмная прокручиваемая лента сообщений со
- * скроллбаром. При открытии окно мягко выезжает снизу и проявляется.
+ * скроллбаром и строками в стиле обычного чата. При открытии окно мягко
+ * выезжает снизу и проявляется.
  */
 public class NarrativeLogScreen extends Screen {
 
@@ -56,12 +56,6 @@ public class NarrativeLogScreen extends Screen {
     private static final int SCROLL_TRACK = 0x30FFFFFF;
     private static final int SCROLL_THUMB = 0x90FFFFFF;
 
-    // === Рамка (сменная текстура, как у журнала квестов) ===
-    private static final int TEXTURE_SIZE = 256;
-    private static final String FRAME_TEXTURE = "narrative_log";
-    /** Отступ содержимого от края окна - в этой полосе видна рамка narrative_log.png. */
-    private static final int FRAME_INSET = 12;
-
     /** Прокрутка в пикселях от самого низа истории (0 = видим последнее сообщение). */
     private int scrollOffset;
     private long openedAt;
@@ -71,21 +65,6 @@ public class NarrativeLogScreen extends Screen {
     private int winY;
     private int winW = WIN_W;
     private int winH;
-
-    // Содержимое окна (внутри рамки).
-    private int contentLeft;
-    private int contentRight;
-    private int contentTop;
-    private int contentBottom;
-
-    // Шапка и подвал (внутри содержимого).
-    private int headX;
-    private int headY;
-    private int headW;
-    private int footY;
-    private int footW;
-
-    // Лента сообщений и скроллбар.
     private int panelLeft;
     private int panelRight;
     private int panelTop;
@@ -119,8 +98,8 @@ public class NarrativeLogScreen extends Screen {
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (button == 0) {
             computeGeometry(0);
-            int bx = headX + headW - 24;
-            int by = headY + 7;
+            int bx = winX + winW - 26;
+            int by = winY + 7;
             if (mouseX >= bx && mouseX <= bx + 16 && mouseY >= by && mouseY <= by + 16) {
                 Minecraft.getInstance().setScreen(null);
                 return true;
@@ -141,12 +120,10 @@ public class NarrativeLogScreen extends Screen {
 
         computeGeometry(slide);
 
-        drawWindowFrame(poseStack, alpha);
-        // Тёмная подложка внутри рамки (поверх текстуры, как в журнале квестов).
-        TextureBlitHelper.fillBox(poseStack, contentLeft, contentTop, contentRight, contentBottom, fade(FEED_FILL, alpha));
-
         drawHeader(poseStack, alpha);
         drawFooter(poseStack, alpha);
+
+        TextureBlitHelper.fillBox(poseStack, panelLeft, panelTop, panelRight, panelBottom, fade(FEED_FILL, alpha));
 
         enableScissor(feedLeft, feedTop, feedRight, feedBottom);
         drawHistory(poseStack, alpha);
@@ -177,25 +154,10 @@ public class NarrativeLogScreen extends Screen {
         this.winX = (this.width - this.winW) / 2;
         this.winY = (this.height - this.winH) / 2 + (int) slide;
 
-        int cx = this.winX + FRAME_INSET;
-        int cy = this.winY + FRAME_INSET;
-        int cw = this.winW - 2 * FRAME_INSET;
-        int ch = this.winH - 2 * FRAME_INSET;
-        this.contentLeft = cx;
-        this.contentRight = cx + cw;
-        this.contentTop = cy;
-        this.contentBottom = cy + ch;
-
-        this.headX = cx;
-        this.headY = cy;
-        this.headW = cw;
-        this.footY = cy + ch - FOOTER_H;
-        this.footW = cw;
-
-        this.panelLeft = cx + 6;
-        this.panelRight = cx + cw - 6;
-        this.panelTop = cy + HEADER_H + 6;
-        this.panelBottom = cy + ch - FOOTER_H - 6;
+        this.panelLeft = this.winX + 6;
+        this.panelRight = this.winX + this.winW - 6;
+        this.panelTop = this.winY + HEADER_H;
+        this.panelBottom = this.winY + this.winH - FOOTER_H;
 
         this.scrollbarX = this.panelRight - 6 - SCROLLBAR_W;
         this.feedRight = this.scrollbarX - 2;
@@ -204,32 +166,25 @@ public class NarrativeLogScreen extends Screen {
         this.feedBottom = this.panelBottom - 6;
     }
 
-    /** Рисует сменную текстуру-рамку (narrative_log.png), растянутую на всё окно. */
-    private void drawWindowFrame(PoseStack poseStack, float alpha) {
-        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, alpha);
-        RenderSystem.setShaderTexture(0, MenuAssetsManager.get(FRAME_TEXTURE));
-        this.blit(poseStack, winX, winY, winW, winH, 0.0F, 0.0F, TEXTURE_SIZE, TEXTURE_SIZE, TEXTURE_SIZE, TEXTURE_SIZE);
-        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
-    }
-
     private void drawHeader(PoseStack poseStack, float alpha) {
-        TextureBlitHelper.fillBox(poseStack, headX, headY, headX + headW, headY + HEADER_H, fade(HEADER_FILL, alpha));
-        TextureBlitHelper.fillBox(poseStack, headX, headY, headX + headW, headY + 2, fade(ACCENT_LINE, alpha));
+        TextureBlitHelper.fillBox(poseStack, winX, winY, winX + winW, winY + HEADER_H, fade(HEADER_FILL, alpha));
+        TextureBlitHelper.fillBox(poseStack, winX, winY, winX + winW, winY + 2, fade(ACCENT_LINE, alpha));
 
         String title = "Сюжетный чат";
-        int tx = headX + (headW - this.font.width(title)) / 2;
-        this.font.drawShadow(poseStack, title, tx, headY + (HEADER_H - 9) / 2, fade(TEXT_TITLE, alpha));
+        int tx = winX + (winW - this.font.width(title)) / 2;
+        this.font.drawShadow(poseStack, title, tx, winY + (HEADER_H - 9) / 2, fade(TEXT_TITLE, alpha));
 
-        this.font.drawShadow(poseStack, "×", headX + headW - 22, headY + (HEADER_H - 9) / 2, fade(TEXT_TITLE, alpha));
+        this.font.drawShadow(poseStack, "×", winX + winW - 22, winY + (HEADER_H - 9) / 2, fade(TEXT_TITLE, alpha));
     }
 
     private void drawFooter(PoseStack poseStack, float alpha) {
-        TextureBlitHelper.fillBox(poseStack, contentLeft, footY, contentRight, contentBottom, fade(FOOTER_FILL, alpha));
-        TextureBlitHelper.fillBox(poseStack, contentLeft, contentBottom - 2, contentRight, contentBottom, fade(ACCENT_LINE, alpha));
+        int fy = winY + winH - FOOTER_H;
+        TextureBlitHelper.fillBox(poseStack, winX, fy, winX + winW, winY + winH, fade(FOOTER_FILL, alpha));
+        TextureBlitHelper.fillBox(poseStack, winX, winY + winH - 2, winX + winW, winY + winH, fade(ACCENT_LINE, alpha));
 
         String hint = "Колесо мыши — прокрутка";
-        int hx = contentLeft + (footW - this.font.width(hint)) / 2;
-        this.font.drawShadow(poseStack, hint, hx, footY + (FOOTER_H - 9) / 2, fade(TEXT_HINT, alpha));
+        int hx = winX + (winW - this.font.width(hint)) / 2;
+        this.font.drawShadow(poseStack, hint, hx, fy + (FOOTER_H - 9) / 2, fade(TEXT_HINT, alpha));
     }
 
     /**
