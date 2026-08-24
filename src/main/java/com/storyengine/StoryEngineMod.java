@@ -2,8 +2,10 @@ package com.storyengine;
 
 import com.mojang.logging.LogUtils;
 import com.storyengine.client.MenuCustomizationConfig;
+import com.storyengine.dialogue.DialogueManager;
 import com.storyengine.network.NarrativeNetworking;
 import com.storyengine.network.QuestNetworking;
+import com.storyengine.network.dialogue.DialogueNetworking;
 import com.storyengine.quest.QuestManager;
 import com.storyengine.quest.QuestProgressTracker;
 import net.minecraftforge.common.MinecraftForge;
@@ -31,9 +33,16 @@ public class StoryEngineMod {
      */
     public static final QuestManager QUEST_MANAGER = new QuestManager();
 
+    /**
+     * Единый экземпляр менеджера диалогов (Dialogue System) на весь мод.
+     * Ленивая загрузка папок/узлов из config/story_engine/dialogues/.
+     */
+    public static final DialogueManager DIALOGUE_MANAGER = new DialogueManager();
+
     public StoryEngineMod() {
         QuestNetworking.register();
         NarrativeNetworking.register();
+        DialogueNetworking.register();
         ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, MenuCustomizationConfig.SPEC);
         MinecraftForge.EVENT_BUS.register(this);
         MinecraftForge.EVENT_BUS.register(new QuestProgressTracker());
@@ -44,6 +53,8 @@ public class StoryEngineMod {
     public void onServerStarting(ServerStartingEvent event) {
         LOGGER.info("[StoryEngine] Загрузка квестов из config/story_engine/quests/ ...");
         QUEST_MANAGER.loadAll();
+        LOGGER.info("[StoryEngine] Подготовка директории диалогов config/story_engine/dialogues/ ...");
+        DIALOGUE_MANAGER.getDialoguesDirectory();
     }
 
     @SubscribeEvent
