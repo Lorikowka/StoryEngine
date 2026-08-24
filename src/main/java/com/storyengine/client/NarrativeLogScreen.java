@@ -180,9 +180,8 @@ public class NarrativeLogScreen extends Screen {
         ResourceLocation tex = MenuAssetsManager.get(texId);
         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, alpha);
         RenderSystem.setShaderTexture(0, tex);
-        // uWidth==textureWidth и vHeight==textureHeight растягивают ВСЮ текстуру на прямоугольник
-        // независимо от её родного разрешения.
-        this.blit(poseStack, x, y, w, h, 0.0F, 0.0F, w, h, w, h);
+        int[] reg = MenuAssetsManager.getRegion(texId);
+        this.blit(poseStack, x, y, w, h, reg[0], reg[1], reg[2], reg[3], MenuAssetsManager.ATLAS_W, MenuAssetsManager.ATLAS_H);
         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
     }
 

@@ -251,10 +251,12 @@ public class QuestScreen extends Screen {
             int u = tab == currentTab ? 160 : (hovered ? 80 : 0);
             blit(poseStack, x, y, TAB_W, TAB_H, u, 20, 80, 24, TEXTURE_SIZE, TEXTURE_SIZE);
 
-            // Иконка статуса слева от подписи.
-            RenderSystem.setShaderTexture(0, tab.iconLocation());
+            // Иконка статуса слева от подписи (из атласа gui_atlas.png).
+            String iconId = tab.iconId();
+            RenderSystem.setShaderTexture(0, MenuAssetsManager.get(iconId));
+            int[] reg = MenuAssetsManager.getRegion(iconId);
             blit(poseStack, x + 10, y + (TAB_H - TAB_ICON_SIZE) / 2, TAB_ICON_SIZE, TAB_ICON_SIZE,
-                    0, 0, TAB_ICON_SIZE, TAB_ICON_SIZE, TAB_ICON_SIZE, TAB_ICON_SIZE);
+                    reg[0], reg[1], reg[2], reg[3], MenuAssetsManager.ATLAS_W, MenuAssetsManager.ATLAS_H);
 
             int textColor = tab == currentTab ? MenuCustomizationConfig.accent()
                     : (hovered ? MenuCustomizationConfig.tabHover() : MenuCustomizationConfig.tabIdle());
@@ -343,7 +345,8 @@ public class QuestScreen extends Screen {
         int titleY = dy - 2;
 
         RenderSystem.setShaderTexture(0, MenuAssetsManager.get("quest_icon"));
-        blit(poseStack, blockX, titleY + 1, iconSize, iconSize, 0, 0, 18, 18, 18, 18);
+        int[] reg = MenuAssetsManager.getRegion("quest_icon");
+        blit(poseStack, blockX, titleY + 1, iconSize, iconSize, reg[0], reg[1], reg[2], reg[3], MenuAssetsManager.ATLAS_W, MenuAssetsManager.ATLAS_H);
 
         poseStack.pushPose();
         poseStack.translate(blockX + iconSize + 6, titleY + 2, 0);
@@ -780,8 +783,8 @@ public class QuestScreen extends Screen {
             return st == this.status;
         }
 
-        private ResourceLocation iconLocation() {
-            return MenuAssetsManager.get(iconId);
+        private String iconId() {
+            return iconId;
         }
 
         private String emptyMessage() {

@@ -6,6 +6,9 @@ import com.storyengine.StoryEngineMod;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.packs.resources.Resource;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.fml.loading.FMLLoader;
 import net.minecraftforge.fml.loading.FMLPaths;
 import org.slf4j.Logger;
 
@@ -16,7 +19,9 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -24,18 +29,27 @@ import java.util.Set;
  * минуя систему ресурс-паков, и регистрирует их как DynamicTexture в
  * TextureManager клиента (зеркало DynamicHeadManager для GUI).
  *
- * Покрывает ВСЕ gui-текстуры мода (рамка меню, виджеты, иконки статусов,
- * default_head и т.п.), чтобы их можно было кастомизировать, подменив файл
- * в config/story_engine/menu/.
+ * Покрывает ВСЕ gui-текстуры мода:
+ *  - индивидуальные: quest_menu, quest_widgets, default_head (каждый - свой файл);
+ *  - атлас gui_atlas.png: status_active, status_completed, status_failed,
+ *    quest_icon, narrative_header, narrative_footer (упакованы в одну текстуру
+ *    с фиксированной раскладкой, см. ATLAS_REGIONS).
+ *
+ * Чтобы кастомизировать атласные иконки, достаточно заменить ОДИН файл
+ * config/story_engine/menu/gui_atlas.png (шаблон создаётся автоматически).
+ * default_head намеренно НЕ входит в атлас (он ближе к heads/ как fallback NPC).
  *
  * Только клиентская сторона для метода get() (регистрация текстуры).
  * Методы копирования шаблонов (copyDefaultsIfMissing/resetDefaults) и clearCache
- * НЕ обращаются к классам клиента, поэтому безопасны при вызове с сервера
+ * НЕ обращаются к классам клиента на сервере (атласные шаблоны пишутся только
+ * в клиентском дисте), поэтому безопасны при вызове с сервера
  * (например, из команды /storymenu), даже на выделенном сервере.
  *
- * Использование: MenuAssetsManager.get("quest_menu") -> ResourceLocation
- * зарегистрированной кастомной текстуры, либо встроенной, если файла нет/
- * кастомизация выключена/файл битый.
+ * Использование для индивидуальных ассетов:
+ *   MenuAssetsManager.get("quest_menu") -> ResourceLocation зарегистрированной
+ *   кастомной текстуры, либо встроенной, если файла нет/кастомизация выключена.
+ * Для атласных ассетов get() возвращает локацию атласа, а регион (uv) берётся
+ * через MenuAssetsManager.getRegion(id) + константы ATLAS_W/ATLAS_H.
  */
 public final class MenuAssetsManager {
 
@@ -47,30 +61,69 @@ public final class MenuAssetsManager {
     static {
         DEFAULTS.put("quest_menu", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/quest_menu.png"));
         DEFAULTS.put("quest_widgets", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/quest_widgets.png"));
-        DEFAULTS.put("quest_icon", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/quest_icon.png"));
-        DEFAULTS.put("status_active", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/status_active.png"));
-        DEFAULTS.put("status_completed", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/status_completed.png"));
-        DEFAULTS.put("status_failed", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/status_failed.png"));
-        // Иконка по умолчанию для голов/портретов NPC - тоже кастомизируемая.
+        // Иконка по умолчанию для голов/портретов NPC - индивидуальная (вне атласа).
         DEFAULTS.put("default_head", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/default_head.png"));
-        // Текстуры шапки и подвала окна истории сюжетного чата (кастомизируемые бары).
-        DEFAULTS.put("narrative_header", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/narrative_header.png"));
-        DEFAULTS.put("narrative_footer", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/narrative_footer.png"));
+    }
+
+    /** Размеры атласа gui_atlas.png (фиксированная раскладка, см. ATLAS_REGIONS). */
+    public static final int ATLAS_W = 360;
+    public static final int ATLAS_H = 88;
+
+    /**
+     * Фиксированная раскладка атласа: id -> {u, v, w, h} в пикселях gui_atlas.png.
+     * Верхний ряд - квадратные иконки по 32px, ниже - широкие бары истории чата.
+     */
+    private static final Map<String, int[]> ATLAS_REGIONS = new HashMap<>();
+    static {
+        ATLAS_REGIONS.put("status_active", new int[]{0, 0, 32, 32});
+        ATLAS_REGIONS.put("status_completed", new int[]{32, 0, 32, 32});
+        ATLAS_REGIONS.put("status_failed", new int[]{64, 0, 32, 32});
+        ATLAS_REGIONS.put("quest_icon", new int[]{96, 0, 32, 32});
+        ATLAS_REGIONS.put("narrative_header", new int[]{0, 32, 360, 30});
+        ATLAS_REGIONS.put("narrative_footer", new int[]{0, 62, 360, 26});
+    }
+
+    /** Встроенные исходники для сборки дефолтного атласа (читаются из ресурсов мода). */
+    private static final Map<String, ResourceLocation> ATLAS_SOURCES = new LinkedHashMap<>();
+    static {
+        ATLAS_SOURCES.put("status_active", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/status_active.png"));
+        ATLAS_SOURCES.put("status_completed", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/status_completed.png"));
+        ATLAS_SOURCES.put("status_failed", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/status_failed.png"));
+        ATLAS_SOURCES.put("quest_icon", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/quest_icon.png"));
+        ATLAS_SOURCES.put("narrative_header", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/narrative_header.png"));
+        ATLAS_SOURCES.put("narrative_footer", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/narrative_footer.png"));
     }
 
     private static final Map<String, ResourceLocation> LOADED = new HashMap<>();
     private static final Set<String> MISSING = new HashSet<>();
+    private static ResourceLocation atlasLocation = null;
 
     private MenuAssetsManager() {
     }
 
+    public static boolean isAtlas(String id) {
+        return ATLAS_REGIONS.containsKey(id);
+    }
+
+    /** Возвращает регион {u, v, w, h} в пикселях атласа для атласного ассета, либо null. */
+    public static int[] getRegion(String id) {
+        return ATLAS_REGIONS.get(id);
+    }
+
     /**
      * Возвращает ResourceLocation текстуры для указанного assetId.
-     * - если кастомизация выключена (MenuCustomizationConfig.enabled() == false) -> встроенная;
-     * - если в config/story_engine/menu/&lt;id&gt;.png есть валидный файл -> зарегистрированная DynamicTexture;
-     * - иначе (файла нет/битый) -> встроенная (результат кэшируется в MISSING).
+     * - атласные ассеты -> локация gui_atlas.png (регион через getRegion);
+     * - индивидуальные ассеты:
+     *     если кастомизация выключена -> встроенная;
+     *     если в config/story_engine/menu/&lt;id&gt;.png есть валидный файл -> DynamicTexture;
+     *     иначе -> встроенная (результат кэшируется в MISSING).
      */
     public static ResourceLocation get(String assetId) {
+        if (ATLAS_SOURCES.containsKey(assetId)) {
+            buildAtlasIfNeeded();
+            return atlasLocation;
+        }
+
         ResourceLocation fallback = DEFAULTS.get(assetId);
         if (fallback == null) {
             LOGGER.warn("[StoryEngine] Неизвестный asset меню: {}", assetId);
@@ -108,6 +161,92 @@ public final class MenuAssetsManager {
         }
     }
 
+    private static void buildAtlasIfNeeded() {
+        if (atlasLocation != null) {
+            return;
+        }
+        // Кастомный атлас из config, если включено и файл есть.
+        if (MenuCustomizationConfig.enabled()) {
+            Path file = getMenuDirectory().resolve("gui_atlas.png");
+            if (Files.isRegularFile(file)) {
+                try (InputStream stream = Files.newInputStream(file)) {
+                    NativeImage img = NativeImage.read(stream);
+                    atlasLocation = registerAtlas(img);
+                    return;
+                } catch (IOException | RuntimeException e) {
+                    LOGGER.error("[StoryEngine] gui_atlas.png повреждён, используем встроенный атлас", e);
+                }
+            }
+        }
+        // Дефолтный атлас, собранный из встроенных текстур.
+        NativeImage atlas = buildDefaultAtlas();
+        atlasLocation = registerAtlas(atlas);
+        if (MenuCustomizationConfig.enabled() && FMLLoader.getDist() == Dist.CLIENT) {
+            Path file = getMenuDirectory().resolve("gui_atlas.png");
+            if (!Files.isRegularFile(file)) {
+                try {
+                    atlas.writeToFile(file);
+                } catch (IOException e) {
+                    LOGGER.warn("[StoryEngine] Не удалось записать шаблон gui_atlas.png", e);
+                }
+            }
+        }
+    }
+
+    private static ResourceLocation registerAtlas(NativeImage image) {
+        DynamicTexture texture = new DynamicTexture(image);
+        ResourceLocation location = new ResourceLocation(StoryEngineMod.MOD_ID, "menu_atlas/gui_atlas");
+        Minecraft.getInstance().getTextureManager().register(location, texture);
+        return location;
+    }
+
+    /** Собирает дефолтный атлас из встроенных gui-текстур по фиксированной раскладке. */
+    private static NativeImage buildDefaultAtlas() {
+        NativeImage atlas = new NativeImage(ATLAS_W, ATLAS_H, true);
+        for (int y = 0; y < ATLAS_H; y++) {
+            for (int x = 0; x < ATLAS_W; x++) {
+                atlas.setPixelRGBA(x, y, 0);
+            }
+        }
+        for (String id : ATLAS_SOURCES.keySet()) {
+            int[] reg = ATLAS_REGIONS.get(id);
+            NativeImage src = loadEmbedded(ATLAS_SOURCES.get(id));
+            if (src == null) {
+                continue;
+            }
+            drawInto(atlas, src, reg[0], reg[1], reg[2], reg[3]);
+            src.close();
+        }
+        return atlas;
+    }
+
+    private static NativeImage loadEmbedded(ResourceLocation loc) {
+        try {
+            Optional<Resource> res = Minecraft.getInstance().getResourceManager().getResource(loc);
+            if (res.isEmpty()) {
+                LOGGER.warn("[StoryEngine] Встроенная текстура не найдена: {}", loc);
+                return null;
+            }
+            return NativeImage.read(res.get().open());
+        } catch (IOException | RuntimeException e) {
+            LOGGER.error("[StoryEngine] Не удалось прочитать встроенную текстуру {}", loc, e);
+            return null;
+        }
+    }
+
+    /** Копирует src в регион (dx,dy,dw,dh) атласа, растягивая (nearest-neighbor). */
+    private static void drawInto(NativeImage dst, NativeImage src, int dx, int dy, int dw, int dh) {
+        int sw = src.getWidth();
+        int sh = src.getHeight();
+        for (int y = 0; y < dh; y++) {
+            int sy = sh > 0 ? (y * sh) / dh : 0;
+            for (int x = 0; x < dw; x++) {
+                int sx = sw > 0 ? (x * sw) / dw : 0;
+                dst.setPixelRGBA(dx + x, dy + y, src.getPixelRGBA(sx, sy));
+            }
+        }
+    }
+
     /** Папка config/story_engine/menu/ (создаётся при необходимости). */
     public static Path getMenuDirectory() {
         Path dir = FMLPaths.CONFIGDIR.get().resolve("story_engine").resolve("menu");
@@ -127,6 +266,9 @@ public final class MenuAssetsManager {
                 copyFromJar(id + ".png", target);
             }
         }
+        if (FMLLoader.getDist() == Dist.CLIENT) {
+            writeAtlasTemplateIfMissing();
+        }
         LOGGER.info("[StoryEngine] Шаблоны текстур меню готовы в {}", getMenuDirectory());
     }
 
@@ -137,6 +279,16 @@ public final class MenuAssetsManager {
             Path target = getMenuDirectory().resolve(id + ".png");
             copyFromJar(id + ".png", target);
         }
+        if (FMLLoader.getDist() == Dist.CLIENT) {
+            Path target = getMenuDirectory().resolve("gui_atlas.png");
+            try {
+                NativeImage atlas = buildDefaultAtlas();
+                atlas.writeToFile(target);
+                atlas.close();
+            } catch (IOException e) {
+                LOGGER.warn("[StoryEngine] Не удалось перезаписать gui_atlas.png", e);
+            }
+        }
         LOGGER.info("[StoryEngine] Текстуры меню сброшены к исходным в {}", getMenuDirectory());
     }
 
@@ -144,6 +296,21 @@ public final class MenuAssetsManager {
     public static void clearCache() {
         LOADED.clear();
         MISSING.clear();
+        atlasLocation = null;
+    }
+
+    private static void writeAtlasTemplateIfMissing() {
+        Path file = getMenuDirectory().resolve("gui_atlas.png");
+        if (Files.exists(file)) {
+            return;
+        }
+        try {
+            NativeImage atlas = buildDefaultAtlas();
+            atlas.writeToFile(file);
+            atlas.close();
+        } catch (IOException e) {
+            LOGGER.warn("[StoryEngine] Не удалось записать шаблон gui_atlas.png", e);
+        }
     }
 
     private static void copyFromJar(String name, Path target) {

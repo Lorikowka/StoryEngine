@@ -235,9 +235,13 @@ NOT_STARTED → ACTIVE → COMPLETED / FAILED
 
 - `quest_menu.png` — фон окна;
 - `quest_widgets.png` — вкладки, строки списка, кнопка закрытия;
-- `quest_icon.png` — иконка заголовка квеста;
-- `status_active.png`, `status_completed.png`, `status_failed.png` —
-  иконки вкладок.
+- `default_head.png` — иконка по умолчанию для голов/портретов NPC
+  (намеренно вне атласа);
+- `gui_atlas.png` — **единый атлас** со всеми мелкими иконками и барами
+  истории чата: `quest_icon`, `status_active`, `status_completed`,
+  `status_failed`, `narrative_header`, `narrative_footer`. Одна текстура с
+  фиксированной раскладкой — чтобы кастомизировать любую из этих иконок,
+  отредактируйте соответствующий регион в `gui_atlas.png`.
 
 Отредактируйте нужный файл. Чтобы изменения подхватились без
 перезапуска — **Моды → Story Engine → Config** (сохранение перезагружает
