@@ -9,6 +9,7 @@ import com.storyengine.interaction.data.TriggerAction;
 import com.storyengine.interaction.server.TriggerActionExecutor;
 import com.storyengine.interaction.server.TriggerManager;
 import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.network.NetworkDirection;
@@ -157,13 +158,25 @@ public final class InteractionNetworking {
                     return;
                 }
 
-                // Защита от читов на дистанцию.
+                // Выключенные триггеры не исполняются.
+                if (!trigger.isEnabled()) {
+                    return;
+                }
+
+                // Защита от читов на дистанцию (до ближайшего блока структуры).
                 Vec3 eye = player.getEyePosition(1.0f);
-                Vec3 target = Vec3.atCenterOf(trigger.getBlockPos());
-                double dist = Math.sqrt(eye.distanceToSqr(target));
-                if (dist > trigger.getMaxDistance() + 1.0) {
-                    LOGGER.warn("[StoryEngine] Игрок {} слишком далеко от триггера {} ({} > {})",
-                            player.getName().getString(), packet.triggerId, dist, trigger.getMaxDistance() + 1.0);
+                double maxDist = trigger.getMaxDistance() + 1.0;
+                boolean inRange = false;
+                for (BlockPos p : trigger.getBlockPoses()) {
+                    double d = Math.sqrt(eye.distanceToSqr(Vec3.atCenterOf(p)));
+                    if (d <= maxDist) {
+                        inRange = true;
+                        break;
+                    }
+                }
+                if (!inRange) {
+                    LOGGER.warn("[StoryEngine] Игрок {} слишком далеко от триггера {} (>{})",
+                            player.getName().getString(), packet.triggerId, maxDist);
                     return;
                 }
 

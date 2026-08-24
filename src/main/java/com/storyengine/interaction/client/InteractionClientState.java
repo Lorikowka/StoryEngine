@@ -50,8 +50,10 @@ public final class InteractionClientState {
     public static void setTriggers(Collection<InteractionTrigger> all) {
         triggers.clear();
         for (InteractionTrigger t : all) {
-            triggers.computeIfAbsent(t.getDimensionRL(), k -> new LinkedHashMap<>())
-                    .put(t.getBlockPos(), t);
+            Map<BlockPos, InteractionTrigger> inDim = triggers.computeIfAbsent(t.getDimensionRL(), k -> new LinkedHashMap<>());
+            for (BlockPos pose : t.getBlockPoses()) {
+                inDim.put(pose, t);
+            }
         }
     }
 

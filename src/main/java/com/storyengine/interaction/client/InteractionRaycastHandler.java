@@ -65,6 +65,10 @@ public final class InteractionRaycastHandler {
             BlockPos pos = new BlockPos((int) Math.floor(point.x), (int) Math.floor(point.y), (int) Math.floor(point.z));
             InteractionTrigger trigger = InteractionClientState.findAt(dim, pos);
             if (trigger != null) {
+                // Выключенные триггеры не детектятся взглядом.
+                if (!trigger.isEnabled()) {
+                    break;
+                }
                 // Проверяем, что блок не занавешен: учитываем только первое попадание
                 // (луч идёт изнутри-наружу, первый триггер и есть ближайший).
                 double dist = Math.sqrt(eye.distanceToSqr(Vec3.atCenterOf(pos)));

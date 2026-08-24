@@ -37,6 +37,12 @@ public class TriggerAction {
     /** Установить флаг: "flag_name true/false". */
     private String setFlag = "";
 
+    /** Изменить состояние OPEN блока(ов) триггера: "open"/"close"/"toggle" (двери, люки, калитки). */
+    private String blockAction = "";
+
+    /** Открыть меню хранилища (контейнера) на блоке триггера. */
+    private boolean openStorage = false;
+
     /** Показать реплику в Narrative HUD (как в DialogueResponse). */
     private Storytell storytell = null;
 
@@ -110,6 +116,22 @@ public class TriggerAction {
         this.setFlag = setFlag;
     }
 
+    public String getBlockAction() {
+        return blockAction;
+    }
+
+    public void setBlockAction(String blockAction) {
+        this.blockAction = blockAction;
+    }
+
+    public boolean isOpenStorage() {
+        return openStorage;
+    }
+
+    public void setOpenStorage(boolean openStorage) {
+        this.openStorage = openStorage;
+    }
+
     public Storytell getStorytell() {
         return storytell;
     }
@@ -125,6 +147,8 @@ public class TriggerAction {
                 || (completeTask != null && !completeTask.isBlank())
                 || (sound != null && !sound.isBlank())
                 || (setFlag != null && !setFlag.isBlank())
+                || (blockAction != null && !blockAction.isBlank())
+                || openStorage
                 || storytell != null;
     }
 

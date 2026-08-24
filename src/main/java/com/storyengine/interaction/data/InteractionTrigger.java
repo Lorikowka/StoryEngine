@@ -38,6 +38,12 @@ public class InteractionTrigger {
     /** Цвет 3D-контура блока (hex-строка вида 0xFF22C55E). */
     private String outlineColor = "0xFF22C55E";
 
+    /** Включён ли триггер (false = не детектится и не исполняется). */
+    private boolean enabled = true;
+
+    /** Дополнительные блоки многоблочной структуры (абсолютные [x,y,z]). */
+    private List<int[]> blocks = new ArrayList<>();
+
     /** Список действий (пункты меню). */
     private List<TriggerAction> actions = new ArrayList<>();
 
@@ -95,6 +101,40 @@ public class InteractionTrigger {
 
     public void setOutlineColor(String outlineColor) {
         this.outlineColor = outlineColor;
+    }
+
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+    }
+
+    public List<int[]> getBlocks() {
+        return blocks;
+    }
+
+    public void setBlocks(List<int[]> blocks) {
+        this.blocks = blocks;
+    }
+
+    /** Все позиции структуры: anchor (position) + дополнительные blocks[]. */
+    public List<BlockPos> getBlockPoses() {
+        List<BlockPos> poses = new ArrayList<>();
+        poses.add(getBlockPos());
+        if (blocks != null) {
+            for (int[] b : blocks) {
+                if (b == null) {
+                    continue;
+                }
+                int x = b.length > 0 ? b[0] : 0;
+                int y = b.length > 1 ? b[1] : 0;
+                int z = b.length > 2 ? b[2] : 0;
+                poses.add(new BlockPos(x, y, z));
+            }
+        }
+        return poses;
     }
 
     public List<TriggerAction> getActions() {

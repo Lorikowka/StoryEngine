@@ -20,16 +20,20 @@ import net.minecraftforge.fml.common.Mod;
 import java.util.Collection;
 
 /**
- * /storytell <targets> <speaker> <icon> <message>
- * /storytell <targets> <speaker> <icon> color <hex> <message>
+ * /storytell <targets> <icon> <message> <speaker>
+ * /storytell <targets> <icon> color <hex> <message> <speaker>
  *
  * Аналог /tellraw, но с именем говорящего и иконкой NPC для Narrative HUD.
  *  - <targets> - игроки-получатели.
- *  - <speaker> - имя говорящего, например "Староста" (в кавычках, если с пробелами).
  *  - <icon>    - имя файла иконки без .png (например "old_man"), "none" - без иконки.
  *  - <hex>     - (опционально) цвет имени спикера в HEX, формат RRGGBB, например FFAA00.
  *                Без этой ветки цвет по умолчанию - жёлтый (как раньше).
  *  - <message> - JSON-компонент текста, как в /tellraw.
+ *  - <speaker> - имя говорящего (последний аргумент, может содержать пробелы,
+ *                кавычки не нужны: Старый дуб).
+ *
+ * Порядок аргументов изменён так, что <speaker> идёт последним и является
+ * "жадным" (greedy), поэтому в нём допустимы пробелы и не требуются кавычки.
  */
 @Mod.EventBusSubscriber(modid = StoryEngineMod.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public final class StoryTellCommand {
@@ -46,15 +50,16 @@ public final class StoryTellCommand {
         dispatcher.register(Commands.literal("storytell")
                 .requires(source -> source.hasPermission(2))
                 .then(Commands.argument("targets", EntityArgument.players())
-                        .then(Commands.argument("speaker", StringArgumentType.string())
-                                .then(Commands.argument("icon", StringArgumentType.word())
-                                        // без цвета - используется жёлтый по умолчанию
-                                        .then(Commands.argument("message", ComponentArgument.textComponent())
-                                                .executes(ctx -> run(ctx, NarrativeMessage.DEFAULT_NAME_COLOR)))
-                                        // /storytell ... <icon> color <hex> <message>
-                                        .then(Commands.literal("color")
-                                                .then(Commands.argument("hex", StringArgumentType.word())
-                                                        .then(Commands.argument("message", ComponentArgument.textComponent())
+                        .then(Commands.argument("icon", StringArgumentType.word())
+                                // без цвета - используется жёлтый по умолчанию
+                                .then(Commands.argument("message", ComponentArgument.textComponent())
+                                        .then(Commands.argument("speaker", StringArgumentType.greedyString())
+                                                .executes(ctx -> run(ctx, NarrativeMessage.DEFAULT_NAME_COLOR))))
+                                // /storytell ... color <hex> <message> <speaker>
+                                .then(Commands.literal("color")
+                                        .then(Commands.argument("hex", StringArgumentType.word())
+                                                .then(Commands.argument("message", ComponentArgument.textComponent())
+                                                        .then(Commands.argument("speaker", StringArgumentType.greedyString())
                                                                 .executes(StoryTellCommand::runWithColor)))))))
                 // /storytell defaultcolor <hex> - цвет реплик игрока в NarrativeLogScreen
                 .then(Commands.literal("defaultcolor")
@@ -97,7 +102,7 @@ public final class StoryTellCommand {
     private static int run(CommandContext<CommandSourceStack> ctx, int nameColor) throws CommandSyntaxException {
         CommandSourceStack source = ctx.getSource();
         Collection<ServerPlayer> targets = EntityArgument.getPlayers(ctx, "targets");
-        String speaker = StringArgumentType.getString(ctx, "speaker");
+        String speaker = StringArgumentType.getString(ctx, "speaker").trim();
         String icon = StringArgumentType.getString(ctx, "icon");
         Component message = ComponentArgument.getComponent(ctx, "message");
 

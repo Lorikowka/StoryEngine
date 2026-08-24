@@ -95,8 +95,10 @@ public final class TriggerManager {
 
     private void index(InteractionTrigger trigger) {
         byId.put(trigger.getId(), trigger);
-        byPos.computeIfAbsent(trigger.getDimensionRL(), k -> new LinkedHashMap<>())
-                .put(trigger.getBlockPos(), trigger);
+        Map<BlockPos, InteractionTrigger> inDim = byPos.computeIfAbsent(trigger.getDimensionRL(), k -> new LinkedHashMap<>());
+        for (BlockPos pose : trigger.getBlockPoses()) {
+            inDim.put(pose, trigger);
+        }
     }
 
     /** Сброс кэша - перечитать все триггеры при следующем обращении. */
@@ -107,6 +109,29 @@ public final class TriggerManager {
 
     public boolean triggerExists(String id) {
         return byId.containsKey(id);
+    }
+
+    /** Включить/выключить триггер (сохраняется в JSON-файл). Возвращает false, если файл не найден. */
+    public boolean setEnabled(String id, boolean enabled) {
+        Path file = getTriggersDirectory().resolve(id + ".json");
+        if (!Files.isRegularFile(file)) {
+            LOGGER.warn("[StoryEngine] Файл триггера '{}' не найден для переключения.", id);
+            return false;
+        }
+        try (Reader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
+            InteractionTrigger trigger = GSON.fromJson(reader, InteractionTrigger.class);
+            if (trigger == null) {
+                return false;
+            }
+            trigger.setEnabled(enabled);
+            saveJson(file, trigger);
+            reload();
+            LOGGER.info("[StoryEngine] Триггер '{}' {}", id, enabled ? "включён" : "выключен");
+            return true;
+        } catch (IOException | JsonSyntaxException e) {
+            LOGGER.error("[StoryEngine] Ошибка переключения триггера '{}'", id, e);
+            return false;
+        }
     }
 
     /** Триггер по id (для сетевых пакетов и команд). */

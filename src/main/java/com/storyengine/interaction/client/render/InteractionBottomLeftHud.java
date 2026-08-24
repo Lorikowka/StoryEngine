@@ -101,7 +101,7 @@ public final class InteractionBottomLeftHud {
             TextureBlitHelper.fillBox(pose, x, panelTop, x + panelW, panelTop + headerH,
                     MenuCustomizationConfig.interactionHeaderFill());
         }
-        String headerText = "[E] " + (trigger.getName() == null ? "" : trigger.getName());
+        String headerText = "[F] " + (trigger.getName() == null ? "" : trigger.getName());
         font.draw(pose, Component.literal(headerText), x + 6,
                 panelTop + (headerH - font.lineHeight) / 2,
                 MenuCustomizationConfig.interactionHeaderText());
@@ -142,7 +142,7 @@ public final class InteractionBottomLeftHud {
         }
 
         // Подсказка управления.
-        String hint = "Прокрутка: Колесо мыши | Выбор: [F]";
+        String hint = "Колесо — выбор · [F] — действие";
         font.draw(pose, Component.literal(hint), x,
                 panelTop + totalH + 2, MenuCustomizationConfig.interactionItemIdleText());
     }
