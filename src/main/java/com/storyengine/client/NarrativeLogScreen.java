@@ -40,6 +40,14 @@ public class NarrativeLogScreen extends Screen {
 
     private static final int ANIM_MS = 350;
 
+    // Адаптация к размеру экрана (доли экрана + ограничения).
+    private static final float WIDTH_FRACTION = 0.45F;
+    private static final int MIN_W = 320;
+    private static final int MAX_W = 760;
+    private static final float HEIGHT_FRACTION = 0.8F;
+    private static final int MIN_H = 320;
+    private static final int MAX_H = 620;
+
     // Цвета шапки/подвала/ленты/скроллбара берутся из MenuCustomizationConfig
     // (секция narrativeLogCustomization), как и у остальных GUI мода.
 
@@ -136,8 +144,8 @@ public class NarrativeLogScreen extends Screen {
      * поднимается на место).
      */
     private void computeGeometry(float slide) {
-        this.winW = WIN_W;
-        this.winH = Mth.clamp((int) (this.height * 0.8f), 320, 560);
+        this.winW = Mth.clamp((int) (this.width * WIDTH_FRACTION), MIN_W, MAX_W);
+        this.winH = Mth.clamp((int) (this.height * HEIGHT_FRACTION), MIN_H, MAX_H);
         this.winX = (this.width - this.winW) / 2;
         this.winY = (this.height - this.winH) / 2 + (int) slide;
 
