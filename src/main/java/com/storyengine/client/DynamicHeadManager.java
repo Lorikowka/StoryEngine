@@ -3,6 +3,7 @@ package com.storyengine.client;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.logging.LogUtils;
 import com.storyengine.StoryEngineMod;
+import com.storyengine.client.MenuAssetsManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.ResourceLocation;
@@ -25,15 +26,20 @@ import java.util.Set;
  * TextureManager клиента. Только клиентская сторона.
  *
  * Использование: DynamicHeadManager.getOrLoad("old_man") -> ResourceLocation
- * зарегистрированной текстуры (или DEFAULT_ICON, если иконки нет/она "none"/не найдена).
+     * зарегистрированной текстуры (или defaultIcon(), если иконки нет/она "none"/не найдена).
  */
 public final class DynamicHeadManager {
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
-    /** Текстура-заглушка по умолчанию из ресурсов мода. */
-    public static final ResourceLocation DEFAULT_ICON =
-            new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/default_head.png");
+    /**
+     * Текстура-заглушка по умолчанию. Берётся через MenuAssetsManager, поэтому
+     * при включённой кастомизации подхватывается пользовательский
+     * config/story_engine/menu/default_head.png.
+     */
+    public static ResourceLocation defaultIcon() {
+        return MenuAssetsManager.get("default_head");
+    }
 
     private static final Map<String, ResourceLocation> LOADED = new HashMap<>();
     private static final Set<String> MISSING = new HashSet<>();
@@ -43,13 +49,13 @@ public final class DynamicHeadManager {
 
     /**
      * Возвращает ResourceLocation зарегистрированной текстуры для указанного
-     * iconId, либо DEFAULT_ICON, если иконка "none"/пустая, либо файл не найден/битый.
+     * iconId, либо defaultIcon(), если иконка "none"/пустая, либо файл не найден/битый.
      * Результат (в т.ч. отрицательный) кэшируется, чтобы не читать диск
      * повторно на каждый кадр отрисовки.
      */
     public static ResourceLocation getOrLoad(String iconId) {
         if (iconId == null || iconId.isBlank() || "none".equalsIgnoreCase(iconId)) {
-            return DEFAULT_ICON;
+            return defaultIcon();
         }
 
         String key = iconId.toLowerCase(Locale.ROOT);
@@ -59,14 +65,14 @@ public final class DynamicHeadManager {
             return cached;
         }
         if (MISSING.contains(key)) {
-            return DEFAULT_ICON;
+            return defaultIcon();
         }
 
         Path file = getHeadsDirectory().resolve(key + ".png");
         if (!Files.isRegularFile(file)) {
             LOGGER.warn("[StoryEngine] Иконка '{}' не найдена: {}", key, file);
             MISSING.add(key);
-            return DEFAULT_ICON;
+            return defaultIcon();
         }
 
         try (InputStream stream = Files.newInputStream(file)) {
@@ -79,7 +85,7 @@ public final class DynamicHeadManager {
         } catch (IOException | RuntimeException e) {
             LOGGER.error("[StoryEngine] Не удалось загрузить иконку '{}' из {}", key, file, e);
             MISSING.add(key);
-            return DEFAULT_ICON;
+            return defaultIcon();
         }
     }
 

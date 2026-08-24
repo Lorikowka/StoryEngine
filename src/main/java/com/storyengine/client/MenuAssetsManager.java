@@ -20,9 +20,13 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Читает .png текстур меню квестов напрямую из config/story_engine/menu/,
+ * Читает .png GUI-текстур мода напрямую из config/story_engine/menu/,
  * минуя систему ресурс-паков, и регистрирует их как DynamicTexture в
- * TextureManager клиента (зеркало DynamicHeadManager для GUI меню).
+ * TextureManager клиента (зеркало DynamicHeadManager для GUI).
+ *
+ * Покрывает ВСЕ gui-текстуры мода (рамка меню, виджеты, иконки статусов,
+ * default_head и т.п.), чтобы их можно было кастомизировать, подменив файл
+ * в config/story_engine/menu/.
  *
  * Только клиентская сторона для метода get() (регистрация текстуры).
  * Методы копирования шаблонов (copyDefaultsIfMissing/resetDefaults) и clearCache
@@ -47,6 +51,10 @@ public final class MenuAssetsManager {
         DEFAULTS.put("status_active", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/status_active.png"));
         DEFAULTS.put("status_completed", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/status_completed.png"));
         DEFAULTS.put("status_failed", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/status_failed.png"));
+        // Иконка по умолчанию для голов/портретов NPC - тоже кастомизируемая.
+        DEFAULTS.put("default_head", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/default_head.png"));
+        // Рамка окна истории сюжетного чата (аналог quest_menu.png).
+        DEFAULTS.put("narrative_log", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/narrative_log.png"));
     }
 
     private static final Map<String, ResourceLocation> LOADED = new HashMap<>();
