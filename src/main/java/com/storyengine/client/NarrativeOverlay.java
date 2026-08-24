@@ -12,7 +12,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.client.event.ClientChatReceivedEvent;
 import net.minecraftforge.client.event.RenderGuiOverlayEvent;
 import net.minecraftforge.client.gui.overlay.VanillaGuiOverlay;
 import net.minecraftforge.event.TickEvent;
@@ -55,14 +54,6 @@ public final class NarrativeOverlay {
             return;
         }
         NarrativeChatManager.tick();
-    }
-
-    @SubscribeEvent
-    public static void onPlayerChat(ClientChatReceivedEvent event) {
-        if (event.isSystem()) {
-            return;
-        }
-        NarrativeChatManager.enqueue(new NarrativeMessage("", "none", event.getMessage()));
     }
 
     @SubscribeEvent
