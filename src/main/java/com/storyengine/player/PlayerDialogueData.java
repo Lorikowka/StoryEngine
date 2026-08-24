@@ -4,7 +4,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.StringTag;
 import net.minecraft.nbt.Tag;
-import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.common.util.INBTSerializable;
 
 import java.util.Collections;
@@ -40,7 +40,7 @@ public class PlayerDialogueData implements INBTSerializable<CompoundTag> {
     }
 
     /** Без синхронизации: флаги читаются/пишутся сервером, клиенту не нужны напрямую. */
-    public static PlayerDialogueData get(ServerPlayer player) {
+    public static PlayerDialogueData get(Player player) {
         return player.getCapability(PlayerDialogueDataCapability.DIALOGUE_DATA)
                 .orElseThrow(() -> new IllegalStateException(
                         "Dialogue data capability is missing for player " + player.getName().getString()));

@@ -3,12 +3,16 @@ package com.storyengine;
 import com.mojang.logging.LogUtils;
 import com.storyengine.client.MenuCustomizationConfig;
 import com.storyengine.dialogue.DialogueManager;
+import com.storyengine.interaction.network.InteractionNetworking;
+import com.storyengine.interaction.server.TriggerManager;
 import com.storyengine.network.NarrativeNetworking;
 import com.storyengine.network.QuestNetworking;
 import com.storyengine.network.dialogue.DialogueNetworking;
 import com.storyengine.quest.QuestManager;
 import com.storyengine.quest.QuestProgressTracker;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.server.ServerStartingEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -39,10 +43,17 @@ public class StoryEngineMod {
      */
     public static final DialogueManager DIALOGUE_MANAGER = new DialogueManager();
 
+    /**
+     * Единый экземпляр менеджера интерактивных триггеров (Interaction System).
+     * Загрузка точек из config/story_engine/triggers/ на старте сервера.
+     */
+    public static final TriggerManager TRIGGER_MANAGER = new TriggerManager();
+
     public StoryEngineMod() {
         QuestNetworking.register();
         NarrativeNetworking.register();
         DialogueNetworking.register();
+        InteractionNetworking.register();
         ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, MenuCustomizationConfig.SPEC);
         MinecraftForge.EVENT_BUS.register(this);
         MinecraftForge.EVENT_BUS.register(new QuestProgressTracker());
@@ -55,6 +66,15 @@ public class StoryEngineMod {
         QUEST_MANAGER.loadAll();
         LOGGER.info("[StoryEngine] Подготовка директории диалогов config/story_engine/dialogues/ ...");
         DIALOGUE_MANAGER.getDialoguesDirectory();
+        LOGGER.info("[StoryEngine] Загрузка интерактивных триггеров из config/story_engine/triggers/ ...");
+        TRIGGER_MANAGER.loadAll();
+    }
+
+    @SubscribeEvent
+    public void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
+        if (event.getEntity() instanceof ServerPlayer serverPlayer) {
+            InteractionNetworking.sendSync(serverPlayer);
+        }
     }
 
     @SubscribeEvent

@@ -87,6 +87,26 @@ public final class MenuCustomizationConfig {
     public static final ForgeConfigSpec.IntValue DIALOGUE_RESPONSE_DISABLED_BORDER;
     public static final ForgeConfigSpec.IntValue DIALOGUE_RESPONSE_DISABLED_TEXT;
 
+    // === Interaction System (меню взаимодействия, левый нижний угол) ===
+    public static final ForgeConfigSpec.BooleanValue INTERACTION_ENABLED;
+    public static final ForgeConfigSpec.BooleanValue INTERACTION_USE_TEXTURE;
+    public static final ForgeConfigSpec.IntValue INTERACTION_PANEL_X;
+    public static final ForgeConfigSpec.IntValue INTERACTION_PANEL_BOTTOM_OFFSET;
+    public static final ForgeConfigSpec.IntValue INTERACTION_PANEL_WIDTH;
+    public static final ForgeConfigSpec.IntValue INTERACTION_ITEM_HEIGHT;
+    public static final ForgeConfigSpec.IntValue INTERACTION_ITEM_GAP;
+    public static final ForgeConfigSpec.IntValue INTERACTION_PANEL_FILL;
+    public static final ForgeConfigSpec.IntValue INTERACTION_PANEL_BORDER;
+    public static final ForgeConfigSpec.IntValue INTERACTION_FOCUS;
+    public static final ForgeConfigSpec.IntValue INTERACTION_HEADER_FILL;
+    public static final ForgeConfigSpec.IntValue INTERACTION_HEADER_TEXT;
+    public static final ForgeConfigSpec.IntValue INTERACTION_ITEM_ACTIVE_FILL;
+    public static final ForgeConfigSpec.IntValue INTERACTION_ITEM_ACTIVE_TEXT;
+    public static final ForgeConfigSpec.IntValue INTERACTION_ITEM_IDLE_FILL;
+    public static final ForgeConfigSpec.IntValue INTERACTION_ITEM_IDLE_TEXT;
+    public static final ForgeConfigSpec.IntValue INTERACTION_ITEM_LOCKED_FILL;
+    public static final ForgeConfigSpec.IntValue INTERACTION_ITEM_LOCKED_TEXT;
+
     static {
         BUILDER.comment("Настройки кастомизации меню квестов (текстуры, цвета, масштаб).")
                 .push("menuCustomization");
@@ -203,6 +223,48 @@ public final class MenuCustomizationConfig {
         LOG_EMPTY_COLOR = color("emptyColor", 0x88A6C8, "Цвет сообщения пустого состояния.");
         LOG_SCROLLBAR_TRACK = color("scrollbarTrack", 0x30FFFFFF, "Трек скроллбара.");
         LOG_SCROLLBAR_THUMB = color("scrollbarThumb", 0x90FFFFFF, "Бегунок скроллбара.");
+        BUILDER.pop();
+
+        BUILDER.comment("Настройки меню интерактивного взаимодействия (Interaction System, левый нижний угол).")
+                .push("interactionCustomization");
+
+        INTERACTION_ENABLED = BUILDER.comment(
+                        "true - использовать кастомные цвета/геометрию/текстуру меню взаимодействия из этого раздела.",
+                        "false - рисовать меню взаимодействия встроенными значениями по умолчанию.")
+                .define("enabled", true);
+
+        INTERACTION_USE_TEXTURE = BUILDER.comment(
+                        "true - рисовать панель поверх кастомной текстуры config/story_engine/menu/interaction_menu.png.",
+                        "false - рисовать панель сплошной заливкой (цвета ниже).")
+                .define("useTexture", true);
+
+        BUILDER.comment("Геометрия панели в пикселях (см. спецификацию Interaction System §2).").push("layout");
+        INTERACTION_PANEL_X = BUILDER.comment("Отступ панели от левого края экрана.")
+                .defineInRange("panelX", 24, 0, 2000);
+        INTERACTION_PANEL_BOTTOM_OFFSET = BUILDER.comment("Отступ панели от нижнего края (над уровнем здоровья/брони).")
+                .defineInRange("panelBottomOffset", 110, 0, 2000);
+        INTERACTION_PANEL_WIDTH = BUILDER.comment("Ширина панели меню.")
+                .defineInRange("panelWidth", 210, 40, 2000);
+        INTERACTION_ITEM_HEIGHT = BUILDER.comment("Высота одного пункта списка.")
+                .defineInRange("itemHeight", 18, 8, 200);
+        INTERACTION_ITEM_GAP = BUILDER.comment("Расстояние между пунктами списка.")
+                .defineInRange("itemGap", 4, 0, 100);
+        BUILDER.pop();
+
+        BUILDER.comment("Цвета в формате ARGB (0xAARRGGBB, 8 hex-цифр). Палитра изумрудно-зелёная.").push("colors");
+        INTERACTION_PANEL_FILL = color("panelFill", 0xEA06140D, "Фон панели (глубокий тёмно-изумрудный графит).");
+        INTERACTION_PANEL_BORDER = color("panelBorder", 0x8010B981, "Основная рамка панели (полупрозрачный изумруд).");
+        INTERACTION_FOCUS = color("focus", 0xFF22C55E, "Акцентная подсветка фокуса/наведения (яркий неоново-зелёный).");
+        INTERACTION_HEADER_FILL = color("headerFill", 0xEA0A2A18, "Фон шапки панели (имя объекта).");
+        INTERACTION_HEADER_TEXT = color("headerText", 0xA7F3D0, "Текст шапки (светло-мятный).");
+        INTERACTION_ITEM_ACTIVE_FILL = color("itemActiveFill", 0xD00F3D24, "Фон активного пункта (насыщенный зелёный).");
+        INTERACTION_ITEM_ACTIVE_TEXT = color("itemActiveText", 0xFFFFFFFF, "Текст активного пункта (чистый белый).");
+        INTERACTION_ITEM_IDLE_FILL = color("itemIdleFill", 0x70092315, "Фон неактивного пункта (приглушённый болотный).");
+        INTERACTION_ITEM_IDLE_TEXT = color("itemIdleText", 0xA7F3D0, "Текст неактивного пункта (светло-мятный).");
+        INTERACTION_ITEM_LOCKED_FILL = color("itemLockedFill", 0x5006140D, "Фон заблокированного пункта.");
+        INTERACTION_ITEM_LOCKED_TEXT = color("itemLockedText", 0x556B5F, "Текст заблокированного пункта (приглушённый серый).");
+        BUILDER.pop();
+
         BUILDER.pop();
 
         BUILDER.pop();
@@ -447,6 +509,79 @@ public final class MenuCustomizationConfig {
 
     public static int logScrollbarThumb() {
         return LOG_SCROLLBAR_THUMB.get();
+    }
+
+    // === Interaction System (меню взаимодействия) ===
+    public static boolean interactionEnabled() {
+        return INTERACTION_ENABLED.get();
+    }
+
+    public static boolean interactionUseTexture() {
+        return INTERACTION_USE_TEXTURE.get();
+    }
+
+    public static int interactionPanelX() {
+        return INTERACTION_PANEL_X.get();
+    }
+
+    public static int interactionPanelBottomOffset() {
+        return INTERACTION_PANEL_BOTTOM_OFFSET.get();
+    }
+
+    public static int interactionPanelWidth() {
+        return INTERACTION_PANEL_WIDTH.get();
+    }
+
+    public static int interactionItemHeight() {
+        return INTERACTION_ITEM_HEIGHT.get();
+    }
+
+    public static int interactionItemGap() {
+        return INTERACTION_ITEM_GAP.get();
+    }
+
+    public static int interactionPanelFill() {
+        return INTERACTION_PANEL_FILL.get();
+    }
+
+    public static int interactionPanelBorder() {
+        return INTERACTION_PANEL_BORDER.get();
+    }
+
+    public static int interactionFocus() {
+        return INTERACTION_FOCUS.get();
+    }
+
+    public static int interactionHeaderFill() {
+        return INTERACTION_HEADER_FILL.get();
+    }
+
+    public static int interactionHeaderText() {
+        return INTERACTION_HEADER_TEXT.get();
+    }
+
+    public static int interactionItemActiveFill() {
+        return INTERACTION_ITEM_ACTIVE_FILL.get();
+    }
+
+    public static int interactionItemActiveText() {
+        return INTERACTION_ITEM_ACTIVE_TEXT.get();
+    }
+
+    public static int interactionItemIdleFill() {
+        return INTERACTION_ITEM_IDLE_FILL.get();
+    }
+
+    public static int interactionItemIdleText() {
+        return INTERACTION_ITEM_IDLE_TEXT.get();
+    }
+
+    public static int interactionItemLockedFill() {
+        return INTERACTION_ITEM_LOCKED_FILL.get();
+    }
+
+    public static int interactionItemLockedText() {
+        return INTERACTION_ITEM_LOCKED_TEXT.get();
     }
 
     private MenuCustomizationConfig() {

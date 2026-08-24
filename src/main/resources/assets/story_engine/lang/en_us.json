@@ -1,5 +1,6 @@
 {
   "key.categories.story_engine": "Story Engine",
   "key.story_engine.open_quest_menu": "Open Quest Menu",
-  "key.story_engine.open_narrative_log": "Open Narrative Chat Log"
+  "key.story_engine.open_narrative_log": "Open Narrative Chat Log",
+  "key.story_engine.interact": "Interact (F)"
 }

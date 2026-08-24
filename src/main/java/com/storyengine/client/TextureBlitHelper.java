@@ -19,6 +19,11 @@ public final class TextureBlitHelper extends GuiComponent {
         blit(poseStack, x, y, 0, 0, width, height, width, height);
     }
 
+    /** Растягивает текстуру размера (texW,texH) в прямоугольник (x,y,width,height). */
+    public static void blitStretch(PoseStack poseStack, int x, int y, int width, int height, int texW, int texH) {
+        blit(poseStack, x, y, 0, 0, width, height, texW, texH);
+    }
+
     /** Заливка прямоугольника сплошным/полупрозрачным цветом (ARGB, как в fill()). */
     public static void fillBox(PoseStack poseStack, int x1, int y1, int x2, int y2, int argbColor) {
         fill(poseStack, x1, y1, x2, y2, argbColor);

@@ -3,7 +3,7 @@ package com.storyengine.dialogue;
 import com.storyengine.player.PlayerDialogueData;
 import com.storyengine.player.PlayerQuestDataHelper;
 import com.storyengine.quest.QuestStatus;
-import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
 
 /** Статус квеста у игрока: quest:<id>:<status>. */
 public class QuestStatusCondition extends DialogueCondition {
@@ -23,7 +23,7 @@ public class QuestStatusCondition extends DialogueCondition {
     }
 
     @Override
-    public boolean evaluate(ServerPlayer player) {
+    public boolean evaluate(Player player) {
         if (status == null) {
             return false;
         }

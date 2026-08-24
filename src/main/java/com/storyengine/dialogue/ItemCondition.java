@@ -2,7 +2,7 @@ package com.storyengine.dialogue;
 
 import net.minecraft.core.Registry;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 
@@ -18,7 +18,7 @@ public class ItemCondition extends DialogueCondition {
     }
 
     @Override
-    public boolean evaluate(ServerPlayer player) {
+    public boolean evaluate(Player player) {
         Item item = Registry.ITEM.get(new ResourceLocation(itemId));
         if (item == null || item == net.minecraft.world.item.Items.AIR) {
             return false;

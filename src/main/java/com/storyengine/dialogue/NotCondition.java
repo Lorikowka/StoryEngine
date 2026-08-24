@@ -1,6 +1,6 @@
 package com.storyengine.dialogue;
 
-import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
 
 /** Инверсия любого условия: not:<condition>. */
 public class NotCondition extends DialogueCondition {
@@ -12,7 +12,7 @@ public class NotCondition extends DialogueCondition {
     }
 
     @Override
-    public boolean evaluate(ServerPlayer player) {
+    public boolean evaluate(Player player) {
         return !inner.evaluate(player);
     }
 }

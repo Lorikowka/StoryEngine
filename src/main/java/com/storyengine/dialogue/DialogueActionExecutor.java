@@ -70,7 +70,8 @@ public final class DialogueActionExecutor {
         }
     }
 
-    private static void runCommand(ServerPlayer player, String command) {
+    /** Запуск команды от имени игрока (переиспользуется Interaction System). */
+    public static void runCommand(ServerPlayer player, String command) {
         if (player.getServer() == null) {
             return;
         }
@@ -88,7 +89,8 @@ public final class DialogueActionExecutor {
         }
     }
 
-    private static void completeTask(ServerPlayer player, String value) {
+    /** Завершение подзадачи (переиспользуется Interaction System). */
+    public static void completeTask(ServerPlayer player, String value) {
         String[] parts = value.split(" ", 2);
         if (parts.length != 2) {
             LOGGER.warn("[StoryEngine] Некорректный completeTask: '{}'", value);
@@ -190,7 +192,8 @@ public final class DialogueActionExecutor {
         return stack;
     }
 
-    private static void setFlag(ServerPlayer player, String value) {
+    /** Установка флага (переиспользуется Interaction System). */
+    public static void setFlag(ServerPlayer player, String value) {
         String[] parts = value.split(" ", 2);
         if (parts.length != 2) {
             LOGGER.warn("[StoryEngine] Некорректный setFlag: '{}'", value);

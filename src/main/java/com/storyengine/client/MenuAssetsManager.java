@@ -63,6 +63,8 @@ public final class MenuAssetsManager {
         DEFAULTS.put("quest_widgets", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/quest_widgets.png"));
         // Иконка по умолчанию для голов/портретов NPC - индивидуальная (вне атласа).
         DEFAULTS.put("default_head", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/default_head.png"));
+        // Панель меню интерактивного взаимодействия (левый нижний угол).
+        DEFAULTS.put("interaction_menu", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/interaction_menu.png"));
     }
 
     /** Размеры атласа gui_atlas.png (фиксированная раскладка, см. ATLAS_REGIONS). */

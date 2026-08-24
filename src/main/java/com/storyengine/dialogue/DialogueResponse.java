@@ -3,7 +3,7 @@ package com.storyengine.dialogue;
 import com.google.gson.JsonObject;
 import com.google.gson.annotations.SerializedName;
 
-import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
 
 /**
  * Вариант ответа игрока. Вместо массива actions[] с type - плоские
@@ -155,7 +155,7 @@ public class DialogueResponse {
     }
 
     /** Доступен ли ответ игроку прямо сейчас (проверка условия if). */
-    public boolean isAvailable(ServerPlayer player) {
+    public boolean isAvailable(Player player) {
         if (condition == null || condition.isBlank()) {
             return true;
         }

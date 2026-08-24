@@ -1,7 +1,7 @@
 package com.storyengine.dialogue;
 
 import com.storyengine.player.PlayerQuestDataHelper;
-import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
 
 /** Подзадача выполнена: task:<questId> <taskId>. */
 public class TaskCondition extends DialogueCondition {
@@ -15,7 +15,7 @@ public class TaskCondition extends DialogueCondition {
     }
 
     @Override
-    public boolean evaluate(ServerPlayer player) {
+    public boolean evaluate(Player player) {
         return PlayerQuestDataHelper.isTaskCompleted(player, questId, taskId);
     }
 }

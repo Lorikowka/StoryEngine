@@ -3,17 +3,22 @@ package com.storyengine.player;
 import com.storyengine.network.QuestNetworking;
 import com.storyengine.quest.QuestStatus;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
 
 /**
  * Современный слой доступа к прогрессу квестов игрока через capability.
  * Сохраняет совместимость с существующим API команд /quest.
+ *
+ * Чтение (getStatus/isTaskCompleted/...) принимает базовый Player, чтобы те же
+ * условия можно было вычислять на клиенте (LocalPlayer) для косметического
+ * отображения. Запись и синхронизация остаются серверными (ServerPlayer).
  */
 public final class PlayerQuestDataHelper {
 
     private PlayerQuestDataHelper() {
     }
 
-    public static QuestStatus getStatus(ServerPlayer player, String questId) {
+    public static QuestStatus getStatus(Player player, String questId) {
         return getData(player).getStatus(questId);
     }
 
@@ -27,7 +32,7 @@ public final class PlayerQuestDataHelper {
         sync(player);
     }
 
-    public static boolean isTaskCompleted(ServerPlayer player, String questId, String taskId) {
+    public static boolean isTaskCompleted(Player player, String questId, String taskId) {
         return getData(player).isTaskCompleted(questId, taskId);
     }
 
@@ -36,7 +41,7 @@ public final class PlayerQuestDataHelper {
         sync(player);
     }
 
-    public static int getTaskProgress(ServerPlayer player, String questId, String taskId) {
+    public static int getTaskProgress(Player player, String questId, String taskId) {
         return getData(player).getTaskProgress(questId, taskId);
     }
 
@@ -49,11 +54,11 @@ public final class PlayerQuestDataHelper {
         getData(player).setTaskProgress(questId, taskId, value);
     }
 
-    public static java.util.Map<String, java.util.Map<String, Integer>> getAllTaskProgress(ServerPlayer player) {
+    public static java.util.Map<String, java.util.Map<String, Integer>> getAllTaskProgress(Player player) {
         return getData(player).getAllTaskProgress();
     }
 
-    public static IPlayerQuestData getData(ServerPlayer player) {
+    public static IPlayerQuestData getData(Player player) {
         return player.getCapability(PlayerQuestDataCapability.QUEST_DATA)
                 .orElseThrow(() -> new IllegalStateException("Quest data capability is missing for player " + player.getName().getString()));
     }
