@@ -2,14 +2,20 @@ package com.storyengine.dialogue;
 
 import com.google.gson.JsonObject;
 import com.google.gson.annotations.SerializedName;
+import com.mojang.logging.LogUtils;
+import org.slf4j.Logger;
 
 import net.minecraft.world.entity.player.Player;
+
+import java.util.Optional;
 
 /**
  * Вариант ответа игрока. Вместо массива actions[] с type - плоские
  * опциональные поля, любые комбинации разрешены (см. спецификацию §5).
  */
 public class DialogueResponse {
+
+    private static final Logger LOGGER = LogUtils.getLogger();
 
     private String text = "";
 
@@ -159,6 +165,11 @@ public class DialogueResponse {
         if (condition == null || condition.isBlank()) {
             return true;
         }
-        return DialogueConditionParser.parse(condition).map(c -> c.evaluate(player)).orElse(false);
+        Optional<DialogueCondition> cond = DialogueConditionParser.parse(condition);
+        if (cond.isEmpty()) {
+            LOGGER.warn("[StoryEngine] Некорректное условие 'if' в ответе диалога: '{}' — ответ скрыт как недоступный.", condition);
+            return false;
+        }
+        return cond.get().evaluate(player);
     }
 }

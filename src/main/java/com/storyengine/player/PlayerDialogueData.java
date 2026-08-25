@@ -39,6 +39,11 @@ public class PlayerDialogueData implements INBTSerializable<CompoundTag> {
         return Collections.unmodifiableMap(flags);
     }
 
+    public void copyFrom(PlayerDialogueData other) {
+        flags.clear();
+        flags.putAll(other.flags);
+    }
+
     /** Без синхронизации: флаги читаются/пишутся сервером, клиенту не нужны напрямую. */
     public static PlayerDialogueData get(Player player) {
         return player.getCapability(PlayerDialogueDataCapability.DIALOGUE_DATA)

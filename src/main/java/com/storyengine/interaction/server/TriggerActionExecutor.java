@@ -1,6 +1,7 @@
 package com.storyengine.interaction.server;
 
 import com.google.gson.JsonObject;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.logging.LogUtils;
 import com.storyengine.StoryEngineMod;
 import com.storyengine.dialogue.DialogueActionExecutor;
@@ -12,15 +13,22 @@ import com.storyengine.interaction.data.TriggerAction;
 import com.storyengine.network.NarrativeNetworking;
 import com.storyengine.network.dialogue.DialogueNetworking;
 import com.storyengine.narrative.NarrativeMessage;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.arguments.selector.EntitySelector;
+import net.minecraft.commands.arguments.selector.EntitySelectorParser;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.entity.Entity;
 import net.minecraftforge.registries.ForgeRegistries;
 import org.slf4j.Logger;
 
+import javax.annotation.Nullable;
 import java.util.Collections;
+import java.util.UUID;
 
 /**
  * Серверное исполнение действия триггера (см. спецификацию §6).
@@ -49,7 +57,7 @@ public final class TriggerActionExecutor {
         }
 
         if (action.getDialogue() != null && !action.getDialogue().isBlank()) {
-            openDialogue(player, action.getDialogue());
+            openDialogue(player, action.getDialogue(), action.getNpc());
         }
 
         if (action.getCompleteTask() != null && !action.getCompleteTask().isBlank()) {
@@ -69,9 +77,10 @@ public final class TriggerActionExecutor {
         }
     }
 
-    private static void openDialogue(ServerPlayer player, String dialogueId) {
+    private static void openDialogue(ServerPlayer player, String dialogueId, String npcSelector) {
+        UUID npcId = resolveNpcSelector(player, npcSelector);
         DialogueManager manager = StoryEngineMod.DIALOGUE_MANAGER;
-        if (manager.start(player, dialogueId, null, null) == null) {
+        if (manager.start(player, dialogueId, null, npcId) == null) {
             LOGGER.warn("[StoryEngine] Не удалось начать диалог '{}' из триггера.", dialogueId);
             return;
         }
@@ -79,6 +88,26 @@ public final class TriggerActionExecutor {
         DialogueNode node = manager.loadNode(dialogueId, manager.getSession(player).getCurrentNodeId()).orElse(null);
         if (node != null) {
             DialogueNetworking.sendOpen(player, dialogueId, node, meta);
+        }
+    }
+
+    /** Резолвит опциональный npc-селектор в UUID (null-безопасно, см. DIALOGUE_CAMERA.md §4). */
+    @Nullable
+    private static UUID resolveNpcSelector(ServerPlayer player, String npcSelector) {
+        if (npcSelector == null || npcSelector.isBlank() || player.getServer() == null) {
+            return null;
+        }
+        try {
+            EntitySelector selector = new EntitySelectorParser(new com.mojang.brigadier.StringReader(npcSelector)).parse();
+            CommandSourceStack source = player.getServer().createCommandSourceStack()
+                    .withEntity(player)
+                    .withPosition(player.position())
+                    .withLevel((ServerLevel) player.level);
+            Entity entity = selector.findSingleEntity(source);
+            return entity != null ? entity.getUUID() : null;
+        } catch (CommandSyntaxException e) {
+            LOGGER.warn("[StoryEngine] npcSelector '{}' в триггере не резолвится, диалог без камеры: {}", npcSelector, e.getMessage());
+            return null;
         }
     }
 

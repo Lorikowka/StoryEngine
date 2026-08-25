@@ -167,6 +167,10 @@ public final class QuestNetworking {
             this.questData = questData;
         }
 
+        private static String orEmpty(String s) {
+            return s == null ? "" : s;
+        }
+
         public static void encode(S2CSyncQuestDataPacket packet, FriendlyByteBuf buffer) {
             buffer.writeInt(packet.statuses.size());
             for (Map.Entry<String, QuestStatus> entry : packet.statuses.entrySet()) {
@@ -192,9 +196,9 @@ public final class QuestNetworking {
             }
             buffer.writeInt(packet.questData.size());
             for (QuestData quest : packet.questData) {
-                buffer.writeUtf(quest.getId());
-                buffer.writeUtf(quest.getTitle());
-                buffer.writeUtf(quest.getDescription());
+                buffer.writeUtf(orEmpty(quest.getId()));
+                buffer.writeUtf(orEmpty(quest.getTitle()));
+                buffer.writeUtf(orEmpty(quest.getDescription()));
                 String author = quest.getAuthor();
                 boolean hasAuthor = author != null && !author.isEmpty();
                 buffer.writeBoolean(hasAuthor);
@@ -242,8 +246,8 @@ public final class QuestNetworking {
             for (int i = 0; i < questCount; i++) {
                 QuestData quest = new QuestData();
                 quest.setId(buffer.readUtf());
-                quest.setTitle(buffer.readUtf());
-                quest.setDescription(buffer.readUtf());
+                quest.setTitle(orEmpty(buffer.readUtf()));
+                quest.setDescription(orEmpty(buffer.readUtf()));
                 if (buffer.readBoolean()) {
                     quest.setAuthor(buffer.readUtf());
                 }
@@ -280,14 +284,14 @@ public final class QuestNetworking {
         private static void encodeTask(FriendlyByteBuf buffer, QuestTask task) {
             String type = task.getType() == null ? "MANUAL" : task.getType().toUpperCase(java.util.Locale.ROOT);
             buffer.writeUtf(type);
-            buffer.writeUtf(task.getId());
-            buffer.writeUtf(task.getTitle());
-            buffer.writeUtf(task.getDescription());
+            buffer.writeUtf(orEmpty(task.getId()));
+            buffer.writeUtf(orEmpty(task.getTitle()));
+            buffer.writeUtf(orEmpty(task.getDescription()));
 
             switch (type) {
                 case "LOCATION": {
                     LocationQuestTask lt = (LocationQuestTask) task;
-                    buffer.writeUtf(lt.getDimension());
+                    buffer.writeUtf(orEmpty(lt.getDimension()));
                     buffer.writeDouble(lt.getX());
                     buffer.writeDouble(lt.getY());
                     buffer.writeDouble(lt.getZ());
@@ -296,20 +300,20 @@ public final class QuestNetworking {
                 }
                 case "ITEM": {
                     ItemQuestTask it = (ItemQuestTask) task;
-                    buffer.writeUtf(it.getTarget());
+                    buffer.writeUtf(orEmpty(it.getTarget()));
                     buffer.writeInt(it.getCount());
                     buffer.writeBoolean(it.isConsume());
                     break;
                 }
                 case "BLOCK_BREAK": {
                     BlockBreakQuestTask bt = (BlockBreakQuestTask) task;
-                    buffer.writeUtf(bt.getBlockId());
+                    buffer.writeUtf(orEmpty(bt.getBlockId()));
                     buffer.writeInt(bt.getCount());
                     break;
                 }
                 case "KILL_ENTITY": {
                     KillEntityQuestTask kt = (KillEntityQuestTask) task;
-                    buffer.writeUtf(kt.getEntityType());
+                    buffer.writeUtf(orEmpty(kt.getEntityType()));
                     buffer.writeInt(kt.getCount());
                     break;
                 }

@@ -25,6 +25,13 @@ public class TriggerAction {
     /** Открыть диалог по id (аналог /dialogue start). */
     private String dialogue = "";
 
+    /**
+     * Опциональный селектор сущности NPC для привязки камеры (см. DIALOGUE_CAMERA.md §4).
+     * Резолвится в UUID в момент запуска; null/пусто = диалог без камеры.
+     * Напр. "@e[tag=barman,limit=1,sort=nearest]".
+     */
+    private String npc = "";
+
     /** Выполнить команду сервера (с заменой @p на игрока). */
     private String command = "";
 
@@ -82,6 +89,14 @@ public class TriggerAction {
 
     public void setDialogue(String dialogue) {
         this.dialogue = dialogue;
+    }
+
+    public String getNpc() {
+        return npc;
+    }
+
+    public void setNpc(String npc) {
+        this.npc = npc;
     }
 
     public String getCommand() {

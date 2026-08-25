@@ -1,5 +1,7 @@
 package com.storyengine.narrative;
 
+import com.storyengine.client.MenuCustomizationConfig;
+
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -27,6 +29,12 @@ public final class NarrativeChatManager {
     private static final int TICKS_PER_CHAR = 1;
     /** Минимальное время показа после полной отрисовки, в тиках (1.5 сек). */
     private static final int MIN_HOLD_TICKS = 30;
+
+    /** Символов в секунду из клиентского конфига (0 = мгновенно). */
+    private static int charsPerSecond() {
+        int cps = MenuCustomizationConfig.narrativeHudTextSpeed();
+        return cps < 0 ? 0 : cps;
+    }
     /** Дополнительное время показа на символ сообщения, в тиках. */
     private static final int HOLD_TICKS_PER_CHAR = 2;
     /** Сколько последних сообщений хранить в истории для NarrativeLogScreen. */
@@ -97,13 +105,18 @@ public final class NarrativeChatManager {
         if (current == null) {
             return 0;
         }
-        return Math.min(plainLength(), elapsedTicks / TICKS_PER_CHAR);
+        int cps = charsPerSecond();
+        if (cps <= 0) {
+            return plainLength();
+        }
+        return Math.min(plainLength(), (int) (elapsedTicks * cps / 20.0));
     }
 
     /** Немедленно завершает анимацию печати текущего сообщения (например, по клику). */
     public static void skipTyping() {
         if (current != null) {
-            elapsedTicks = plainLength() * TICKS_PER_CHAR;
+            int cps = charsPerSecond();
+            elapsedTicks = cps <= 0 ? 1 : (int) Math.ceil(plainLength() * 20.0 / cps);
         }
     }
 

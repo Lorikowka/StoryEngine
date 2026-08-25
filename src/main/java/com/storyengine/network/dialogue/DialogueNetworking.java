@@ -44,6 +44,7 @@ public final class DialogueNetworking {
     private static final int UPDATE_PACKET_ID = 7;
     private static final int CLOSE_PACKET_ID = 8;
     private static final int SELECT_PACKET_ID = 9;
+    private static final int STOP_PACKET_ID = 10;
 
     private DialogueNetworking() {
     }
@@ -53,6 +54,7 @@ public final class DialogueNetworking {
         QuestNetworking.CHANNEL.registerMessage(UPDATE_PACKET_ID, S2CUpdateDialoguePacket.class, S2CUpdateDialoguePacket::encode, S2CUpdateDialoguePacket::decode, S2CUpdateDialoguePacket::handle);
         QuestNetworking.CHANNEL.registerMessage(CLOSE_PACKET_ID, S2CCloseDialoguePacket.class, S2CCloseDialoguePacket::encode, S2CCloseDialoguePacket::decode, S2CCloseDialoguePacket::handle);
         QuestNetworking.CHANNEL.registerMessage(SELECT_PACKET_ID, C2SSelectResponsePacket.class, C2SSelectResponsePacket::encode, C2SSelectResponsePacket::decode, C2SSelectResponsePacket::handle);
+        QuestNetworking.CHANNEL.registerMessage(STOP_PACKET_ID, C2SStopDialoguePacket.class, C2SStopDialoguePacket::encode, C2SStopDialoguePacket::decode, C2SStopDialoguePacket::handle);
     }
 
     /** Открывает диалог у игрока (первый узел). */
@@ -300,6 +302,38 @@ public final class DialogueNetworking {
                 DialogueNode node = result.node;
                 DialogueMeta meta = StoryEngineMod.DIALOGUE_MANAGER.loadDialogue(session.getDialogueId()).orElse(null);
                 DialogueNetworking.sendUpdate(player, session.getDialogueId(), node, meta);
+            });
+            context.setPacketHandled(true);
+        }
+    }
+
+    // ============================================================
+    // C2SStopDialoguePacket (id 10)
+    // Клиент сообщает серверу, что экран диалога закрыт (ESC и т.п.),
+    // чтобы серверная сессия не "висела" (см. DialogueScreen.onClose).
+    // ============================================================
+    public static void sendStop() {
+        QuestNetworking.CHANNEL.sendToServer(new C2SStopDialoguePacket());
+    }
+
+    public static final class C2SStopDialoguePacket {
+        public C2SStopDialoguePacket() {
+        }
+
+        public static void encode(C2SStopDialoguePacket packet, FriendlyByteBuf buffer) {
+        }
+
+        public static C2SStopDialoguePacket decode(FriendlyByteBuf buffer) {
+            return new C2SStopDialoguePacket();
+        }
+
+        public static void handle(C2SStopDialoguePacket packet, Supplier<NetworkEvent.Context> ctx) {
+            NetworkEvent.Context context = ctx.get();
+            context.enqueueWork(() -> {
+                ServerPlayer player = context.getSender();
+                if (player != null) {
+                    StoryEngineMod.DIALOGUE_MANAGER.stop(player);
+                }
             });
             context.setPacketHandled(true);
         }

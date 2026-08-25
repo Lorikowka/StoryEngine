@@ -84,6 +84,45 @@ public class QuestManager {
                 return;
             }
 
+            // Нормализация: подставляем пустые строки вместо null, чтобы
+            // encodeTask/encode пакета синхронизации не падали с NPE (GOTCHAS §1).
+            // Предупреждаем автора контента о пропущенных полях (но не падаем).
+            if (data.getTitle() == null || data.getDescription() == null) {
+                LOGGER.warn("[StoryEngine] Квест '{}' ({}) имеет null поля уровня квеста (title={}, description={}) - заполнено пустыми строками",
+                        data.getId(), path.getFileName(), data.getTitle(), data.getDescription());
+            }
+            if (data.getTitle() == null) {
+                data.setTitle("");
+            }
+            if (data.getDescription() == null) {
+                data.setDescription("");
+            }
+            if (data.getTasks() != null) {
+                for (QuestTask t : data.getTasks()) {
+                    if (t == null) {
+                        LOGGER.warn("[StoryEngine] Квест '{}' ({}) содержит null-задачу в списке tasks - пропущена",
+                                data.getId(), path.getFileName());
+                        continue;
+                    }
+                    if (t.getId() == null || t.getTitle() == null || t.getDescription() == null) {
+                        LOGGER.warn("[StoryEngine] Задача квеста '{}' ({}) имеет null поля (id={}, title={}, description={}) - заполнено пустыми строками",
+                                data.getId(), path.getFileName(), t.getId(), t.getTitle(), t.getDescription());
+                    }
+                    if (t.getId() == null) {
+                        t.setId("");
+                    }
+                    if (t.getTitle() == null) {
+                        t.setTitle("");
+                    }
+                    if (t.getDescription() == null) {
+                        t.setDescription("");
+                    }
+                    if (t.getType() == null) {
+                        t.setType("MANUAL");
+                    }
+                }
+            }
+
             String fileNameWithoutExt = path.getFileName().toString().replace(".json", "");
             if (!fileNameWithoutExt.equals(data.getId())) {
                 LOGGER.warn("[StoryEngine] Имя файла '{}' не совпадает с id квеста '{}' - используется id из содержимого файла",

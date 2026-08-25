@@ -89,6 +89,9 @@ public final class MenuCustomizationConfig {
 
     // === Interaction System (меню взаимодействия, левый нижний угол) ===
     public static final ForgeConfigSpec.BooleanValue INTERACTION_ENABLED;
+
+    // === Narrative HUD (сюжетный чат, центр-низ экрана) ===
+    public static final ForgeConfigSpec.IntValue NARRATIVE_TEXT_SPEED;
     public static final ForgeConfigSpec.BooleanValue INTERACTION_USE_TEXTURE;
     public static final ForgeConfigSpec.IntValue INTERACTION_PANEL_X;
     public static final ForgeConfigSpec.IntValue INTERACTION_PANEL_BOTTOM_OFFSET;
@@ -267,6 +270,13 @@ public final class MenuCustomizationConfig {
 
         BUILDER.pop();
 
+        BUILDER.comment("Настройки сюжетного чата (Narrative HUD): скорость печатной машинки.").push("narrativeHudCustomization");
+        NARRATIVE_TEXT_SPEED = BUILDER.comment(
+                        "Скорость печатной машинки сюжетного чата: символов в секунду.",
+                        "0 = мгновенно, 20 ~ эталонная скорость.")
+                .defineInRange("charsPerSecond", 20, 0, 200);
+        BUILDER.pop();
+
         BUILDER.pop();
 
         SPEC = BUILDER.build();
@@ -372,6 +382,11 @@ public final class MenuCustomizationConfig {
     /** Символов в секунду (0 = мгновенно). */
     public static int dialogueTextSpeed() {
         return DIALOGUE_TEXT_SPEED.get();
+    }
+
+    /** Символов в секунду для сюжетного чата (Narrative HUD). 0 = мгновенно. */
+    public static int narrativeHudTextSpeed() {
+        return NARRATIVE_TEXT_SPEED.get();
     }
 
     public static int dialogueBarFill() {

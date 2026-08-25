@@ -16,9 +16,15 @@ import java.util.Map;
 
 public class QuestProgressTracker {
 
+    private static int tickCounter = 0;
+
     @SubscribeEvent
     public void onPlayerTick(TickEvent.PlayerTickEvent event) {
         if (event.phase != TickEvent.Phase.END || event.player.level.isClientSide) {
+            return;
+        }
+
+        if ((tickCounter++ % 4) != 0) {
             return;
         }
 
@@ -60,6 +66,9 @@ public class QuestProgressTracker {
                     setProgress(player, quest.getId(), task.getId(), count);
                     if (count >= itemTask.getCount()) {
                         PlayerQuestDataHelper.completeTask(player, quest.getId(), task.getId());
+                        if (itemTask.isConsume()) {
+                            consumeItemsInInventory(player, itemTask.getTarget(), itemTask.getCount());
+                        }
                         QuestNetworking.sendQuestStatusMessage(player, "Подзадача '" + task.getTitle() + "' выполнена");
                     } else {
                         hasIncompleteTrackableTask = true;
@@ -157,8 +166,39 @@ public class QuestProgressTracker {
         return distance <= task.getRadius();
     }
 
-    private int countItemsInInventory(ServerPlayer player, String itemId) {
-        if (itemId == null || itemId.isBlank()) {
+    /**
+     * Списывает {@code amount} предметов {@code itemId} из инвентаря игрока
+     * (основной + offhand). Используется для ItemQuestTask с флагом consume.
+     */
+    private void consumeItemsInInventory(ServerPlayer player, String itemId, int amount) {
+        ResourceLocation itemLocation = ResourceLocation.tryParse(itemId);
+        if (itemLocation == null || amount <= 0) {
+            return;
+        }
+        int remaining = amount;
+        for (ItemStack stack : player.getInventory().items) {
+            if (remaining <= 0) {
+                break;
+            }
+            if (!stack.isEmpty() && Registry.ITEM.getKey(stack.getItem()).equals(itemLocation)) {
+                int take = Math.min(remaining, stack.getCount());
+                stack.shrink(take);
+                remaining -= take;
+            }
+        }
+        for (ItemStack stack : player.getInventory().offhand) {
+            if (remaining <= 0) {
+                break;
+            }
+            if (!stack.isEmpty() && Registry.ITEM.getKey(stack.getItem()).equals(itemLocation)) {
+                int take = Math.min(remaining, stack.getCount());
+                stack.shrink(take);
+                remaining -= take;
+            }
+        }
+    }
+
+    private int countItemsInInventory(ServerPlayer player, String itemId) {        if (itemId == null || itemId.isBlank()) {
             return 0;
         }
         ResourceLocation itemLocation = ResourceLocation.tryParse(itemId);

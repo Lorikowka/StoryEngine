@@ -112,6 +112,9 @@ public class DialogueScreen extends Screen {
         DialogueCameraController.clear();
         if (this.minecraft != null) {
             this.minecraft.options.hideGui = this.prevHideGui;
+            if (this.minecraft.getConnection() != null) {
+                DialogueNetworking.sendStop();
+            }
         }
         super.onClose();
     }
