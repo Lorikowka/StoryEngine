@@ -57,6 +57,9 @@ public class DialogueScreen extends Screen {
 
     /** Открыть (или обновить, если окно уже открыто). */
     public static void open(DialogueNodePayload payload) {
+        if (payload != null) {
+            DialogueCameraController.setTarget(payload.npcPosition);
+        }
         Minecraft mc = Minecraft.getInstance();
         if (mc.screen instanceof DialogueScreen screen) {
             screen.update(payload);
@@ -67,6 +70,9 @@ public class DialogueScreen extends Screen {
 
     /** Заменить содержимое (переход к следующему узлу). */
     public static void update(DialogueNodePayload payload) {
+        if (payload != null) {
+            DialogueCameraController.setTarget(payload.npcPosition);
+        }
         Minecraft mc = Minecraft.getInstance();
         if (mc.screen instanceof DialogueScreen screen) {
             screen.doUpdate(payload);
@@ -103,6 +109,7 @@ public class DialogueScreen extends Screen {
 
     @Override
     public void onClose() {
+        DialogueCameraController.clear();
         if (this.minecraft != null) {
             this.minecraft.options.hideGui = this.prevHideGui;
         }

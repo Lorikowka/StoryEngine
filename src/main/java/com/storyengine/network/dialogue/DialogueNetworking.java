@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import javax.annotation.Nullable;
+import java.util.UUID;
 
 /**
  * Регистрация и отправка пакетов Dialogue System.
@@ -94,7 +95,7 @@ public final class DialogueNetworking {
         if (npcId == null) {
             return null;
         }
-        Entity npc = player.level().getEntity(npcId);
+        Entity npc = player.getLevel().getEntity(npcId);
         if (npc == null) {
             return null;
         }

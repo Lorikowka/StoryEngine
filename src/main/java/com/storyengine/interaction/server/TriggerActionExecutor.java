@@ -71,7 +71,7 @@ public final class TriggerActionExecutor {
 
     private static void openDialogue(ServerPlayer player, String dialogueId) {
         DialogueManager manager = StoryEngineMod.DIALOGUE_MANAGER;
-        if (manager.start(player, dialogueId, null) == null) {
+        if (manager.start(player, dialogueId, null, null) == null) {
             LOGGER.warn("[StoryEngine] Не удалось начать диалог '{}' из триггера.", dialogueId);
             return;
         }
