@@ -1,9 +1,11 @@
-# Dialogue System (Story Engine)
+﻿# Dialogue System (Story Engine)
 
 Третий модуль Story Engine — ветвящиеся диалоги с условиями, вариантами
 ответа и действиями. Работает поверх Quest System и Narrative HUD и
 триггерится из Hollow Engine (или ванильных командных блоков) командой
-`/dialogue start`.
+`/story dialogue start`.
+
+> Старое имя `/dialogue` остаётся рабочим алиасом.
 
 > Полное описание форматов — в проектном документе
 > `StoryEngine_DialogueSystem_Project(1).md`. Здесь — справка по
@@ -15,25 +17,25 @@
 
 ```text
 # создать шаблон диалога (папка + _meta.json + entry.json)
-/dialogue create tavern "Таверна «Кривой кабан»"
+/story dialogue create tavern "Таверна «Кривой кабан»"
 
 # начать диалог у игрока (открывает GUI; default-узел из _meta.entry)
-/dialogue start @p tavern
+/story dialogue start @p tavern
 
 # перезагрузить все диалоги с диска (hot-reload)
-/dialogue reload
+/story dialogue reload
 
 # список загруженных диалогов
-/dialogue list
+/story dialogue list
 
 # прервать активный диалог
-/dialogue stop @p
+/story dialogue stop @p
 ```
 
-Файлы диалогов живут в `config/story_engine/dialogues/`:
+Файлы диалогов живут в `config/story_engine/story dialogues/`:
 
 ```
-config/story_engine/dialogues/
+config/story_engine/story dialogues/
 ├── elder_greeting/
 │   ├── _meta.json        ← title, entry, speaker
 │   ├── start.json        ← узел (экран реплики + ответы)
@@ -44,7 +46,7 @@ config/story_engine/dialogues/
     └── greeting.json
 ```
 
-Правка JSON работает **без перезапуска сервера** — `/dialogue reload`
+Правка JSON работает **без перезапуска сервера** — `/story dialogue reload`
 сбрасывает кэш, всё перечитается при следующем обращении.
 
 ---
@@ -53,11 +55,11 @@ config/story_engine/dialogues/
 
 | Команда | Назначение |
 | --- | --- |
-| `/dialogue create <id> [title]` | Создать папку + `_meta.json` + `entry.json`. |
-| `/dialogue reload` | Сбросить кэш, перечитать все диалоги. |
-| `/dialogue list` | Список загруженных диалогов (папок). |
-| `/dialogue start <player> <id> [nodeId]` | Начать диалог (default: `entry` из `_meta`). |
-| `/dialogue stop <player>` | Прервать активный диалог. |
+| `/story dialogue create <id> [title]` | Создать папку + `_meta.json` + `entry.json`. |
+| `/story dialogue reload` | Сбросить кэш, перечитать все диалоги. |
+| `/story dialogue list` | Список загруженных диалогов (папок). |
+| `/story dialogue start <player> <id> [nodeId]` | Начать диалог (default: `entry` из `_meta`). |
+| `/story dialogue stop <player>` | Прервать активный диалог. |
 
 `<id>` и `[nodeId]` поддерживают автодополнение по `Tab`.
 
@@ -71,7 +73,7 @@ config/story_engine/dialogues/
   "speaker": "Староста",
   "responses": [
     { "text": "Я ищу древний ключ.", "next": "knows" },
-    { "text": "§cНе твоё дело, старик.", "command": "/quest start @p bandit_path", "next": "angry" },
+    { "text": "§cНе твоё дело, старик.", "command": "/story quest start @p bandit_path", "next": "angry" },
     { "text": "[Убеждение] Мне нужна ваша помощь.",
       "if": "quest:village_in_danger:active",
       "completeTask": "village_in_danger talk_to_elder",
@@ -150,8 +152,8 @@ com.storyengine.player/
 
 ### Ленивая загрузка
 
-`DialogueManager` грузит папку диалога при первом `/dialogue start <id>`
-(или `selectResponse`), кэширует `_meta` и узлы в памяти. `/dialogue
+`DialogueManager` грузит папку диалога при первом `/story dialogue start <id>`
+(или `selectResponse`), кэширует `_meta` и узлы в памяти. `/story dialogue
 reload` сбрасывает кэш. Это критично для карт со снятиями NPC.
 
 ### Сеть и валидация
@@ -206,22 +208,23 @@ reload` сбрасывает кэш. Это критично для карт с�
   реплику (ставится в очередь и показывается после закрытия окна).
 - **Hollow Engine**: модуль **не** занимается детекцией приближения игрока
   к NPC — это задача Hollow Engine (триггеры зон/NPC-скрипты) или ванильных
-  командных блоков. Точка входа для диалога — только `/dialogue start`.
+  командных блоков. Точка входа для диалога — только `/story dialogue start`.
 
 ---
 
 ## Проверка (интеграционная)
 
-1. `/dialogue create tavern "Таверна"` → дописать узлы по примеру из
+1. `/story dialogue create tavern "Таверна"` → дописать узлы по примеру из
    проектного документа (§13).
-2. `/dialogue start @p tavern` → открывается окно, виден портрет, текст
+2. `/story dialogue start @p tavern` → открывается окно, виден портрет, текст
    печатается.
 3. Выбрать ответ с `if:quest:...` — при невыполненном условии кнопка серая.
 4. Ответ с `give`/`xp`/`setTask`/`startQuest` выдаёт предметы/меняет квест.
 5. Ответ со `storytell` + `close` → окно закрывается, финальная фраза
    появляется в Narrative HUD.
-6. `/dialogue reload` после правки JSON подхватывается без рестарта.
+6. `/story dialogue reload` после правки JSON подхватывается без рестарта.
 
 ---
 
 *Story Engine · Dialogue System · реализация v1 · автор Lorikowka*
+

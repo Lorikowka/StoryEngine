@@ -1,4 +1,4 @@
-# Story Engine
+﻿# Story Engine
 
 **Сюжетный движок для Minecraft (Forge 1.19.2).**
 
@@ -55,14 +55,14 @@ Story Engine — это модульный инструментарий для �
 ## Быстрый старт
 
 ```text
-# создать шаблон квеста и открыть его в config/story_engine/quests/
-/quest create find_key "Потерянный ключ"
+# создать шаблон квеста и открыть его в config/story_engine/story quests/
+/story quest create find_key "Потерянный ключ"
 
 # выдать квест игроку
-/quest start Steve find_key
+/story quest start Steve find_key
 
 # послать сюжетную реплику всем игрокам
-/storytell @a "Староста" old_man {"text":"Ключ спрятан под мельницей."}
+/story tell @a "Староста" old_man {"text":"Ключ спрятан под мельницей."}
 
 # открыть журнал квестов
 нажмите J
@@ -75,76 +75,86 @@ Story Engine — это модульный инструментарий для �
 Все команды требуют прав оператора (**permission level 2**, как
 `/gamemode`). ID и имена подзадач поддерживают автодополнение по `Tab`.
 
-### `/quest` — управление квестами
+Все команды модов объединены под единым корнем **`/story`**:
+`/story dialogue`, `/story tell`, `/story quest`, `/story trigger`,
+`/story menu`. Справка по разделам — `/story help [area]`.
+Старые имена корней (`/dialogue`, `/storytell`, `/quest`, `/trigger`,
+`/storymenu`) **продолжают работать как алиасы** для обратной совместимости.
+
+### `/story quest` — управление квестами
 
 | Команда | Назначение |
 | --- | --- |
-| `/quest create <id> [title]` | Создать шаблон JSON-квеста. |
-| `/quest reload` | Перечитать все квесты с диска. |
-| `/quest list` | Список загруженных квестов. |
-| `/quest edit <id> title <text>` | Сменить название квеста на лету. |
-| `/quest edit <id> description <text>` | Сменить описание квеста на лету. |
-| `/quest start <player> <id>` | Начать квест у игрока. |
-| `/quest complete <player> <id>` | Завершить, выдать награды. |
-| `/quest fail <player> <id>` | Провалить квест. |
-| `/quest reset <player> <id>` | Сбросить статус и прогресс. |
+| `/story quest create <id> [title]` | Создать шаблон JSON-квеста. |
+| `/story quest reload` | Перечитать все квесты с диска. |
+| `/story quest list` | Список загруженных квестов. |
+| `/story quest edit <id> title <text>` | Сменить название квеста на лету. |
+| `/story quest edit <id> description <text>` | Сменить описание квеста на лету. |
+| `/story quest start <player> <id>` | Начать квест у игрока. |
+| `/story quest complete <player> <id>` | Завершить, выдать награды. |
+| `/story quest fail <player> <id>` | Провалить квест. |
+| `/story quest reset <player> <id>` | Сбросить статус и прогресс. |
 
-### `/quest task` — подзадачи
+### `/story quest task` — подзадачи
 
 ```text
-/quest task add manual   <questId> <taskId> <title...>
-/quest task add location <questId> <taskId> <dim> <x> <y> <z> <r> <title...>
-/quest task add item     <questId> <taskId> <itemId> <count> <title...>
-/quest task add block    <questId> <taskId> <blockId> <count> <title...>
-/quest task add kill     <questId> <taskId> <entityType> <count> <title...>
+/story quest task add manual   <questId> <taskId> <title...>
+/story quest task add location <questId> <taskId> <dim> <x> <y> <z> <r> <title...>
+/story quest task add item     <questId> <taskId> <itemId> <count> <title...>
+/story quest task add block    <questId> <taskId> <blockId> <count> <title...>
+/story quest task add kill     <questId> <taskId> <entityType> <count> <title...>
 
-/quest task remove <questId> <taskId>
-/quest task edit <questId> <taskId> title <text>
-/quest task edit <questId> <taskId> description <text>
-/quest task complete <player> <questId> <taskId>
+/story quest task remove <questId> <taskId>
+/story quest task edit <questId> <taskId> title <text>
+/story quest task edit <questId> <taskId> description <text>
+/story quest task complete <player> <questId> <taskId>
 ```
 
-`/quest task add/remove/edit` сохраняют квест на диск и сразу
+`/story quest task add/remove/edit` сохраняют квест на диск и сразу
 рассылают обновление всем онлайн-игрокам.
 
-### `/storytell` — сюжетная реплика
+### `/story tell` — сюжетная реплика
 
 ```text
-/storytell <players> <speaker> <icon> <message>
+/story tell <players> <speaker> <icon> [color <hex>] <message>
 ```
 
 - `<players>` — получатели (например `@a`, `@p`, `Steve`);
-- `<speaker>` — имя говорящего (в кавычках при пробелах: `"Староста"`);
+- `<speaker>` — имя говорящего, `StringArgumentType.string()`: одно слово без
+  кавычек, либо в кавычках при пробелах: `"Староста"`;
 - `<icon>` — имя PNG-иконки без расширения (`old_man`) или `none`;
+- `[color <hex>]` — опциональный цвет имени (без `#`, например `FFAA00`);
 - `<message>` — JSON-текст, как в `/tellraw`
   (`{"text":"Привет!","color":"gold"}`).
 
-### `/storymenu` — текстуры меню
+Цвет реплик игрока в журнале — `/story tell defaultcolor <hex>`.
+
+### `/story menu` — текстуры меню
 
 | Команда | Назначение |
 | --- | --- |
-| `/storymenu reset` | Вернуть PNG меню к исходным. |
-| `/storymenu reload` | Сбросить кэш текстур на клиентах (подхватить правки). |
+| `/story menu reset` | Вернуть PNG меню к исходным. |
+| `/story menu reload` | Сбросить кэш текстур на клиентах (подхватить правки). |
 
-### `/dialogue` — диалоги
+### `/story dialogue` — диалоги
 
 | Команда | Назначение |
 | --- | --- |
-| `/dialogue create <id> [title]` | Создать папку диалога + `_meta.json` + `entry.json`. |
-| `/dialogue reload` | Перечитать все диалоги с диска (hot-reload). |
-| `/dialogue list` | Список загруженных диалогов. |
-| `/dialogue start <player> <id> [nodeId]` | Начать диалог (default: `entry` из `_meta`). |
-| `/dialogue stop <player>` | Прервать активный диалог. |
+| `/story dialogue create <id> [title]` | Создать папку диалога + `_meta.json` + `entry.json`. |
+| `/story dialogue reload` | Перечитать все диалоги с диска (hot-reload). |
+| `/story dialogue list` | Список загруженных диалогов. |
+| `/story dialogue start <player> <id> [nodeId]` | Начать диалог (default: `entry` из `_meta`). |
+| `/story dialogue stop <player>` | Прервать активный диалог. |
 
-Диалоги описываются JSON в `config/story_engine/dialogues/` (папка =
+Диалоги описываются JSON в `config/story_engine/story dialogues/` (папка =
 диалог, файл = узел). Подробности и формат узла/ответов/условий — в
-`docs/DIALOGUE_SYSTEM.md`.
+`docs/story dialogue_SYSTEM.md`.
 
 ---
 
 ## Система квестов
 
-Квесты хранятся в `config/story_engine/quests/<id>.json`. Имя файла
+Квесты хранятся в `config/story_engine/story quests/<id>.json`. Имя файла
 должно совпадать с полем `id` квеста.
 
 ### Формат JSON
@@ -179,7 +189,7 @@ Story Engine — это модульный инструментарий для �
 | `KILL_ENTITY` | да (убийство моба) | `entityType`, `count` |
 
 > **Важно про `MANUAL`:** такая задача никогда не завершается сама —
-> только явно через `/quest task complete` или `/quest complete`. Это
+> только явно через `/story quest task complete` или `/story quest complete`. Это
 > осознанное поведение, чтобы ручные этапы (диалоги, выбор игрока) не
 > «проскакивали» автоматически.
 
@@ -202,7 +212,7 @@ NOT_STARTED → ACTIVE → COMPLETED / FAILED
 
 ## Сюжетный чат (Narrative HUD)
 
-`/storytell` отправляет реплику, которая рисуется снизу по центру экрана
+`/story tell` отправляет реплику, которая рисуется снизу по центру экрана
 (`Y = высота − 60`, блок 300px):
 
 - слева — иконка NPC 32×32 (если задана);
@@ -221,7 +231,7 @@ NOT_STARTED → ACTIVE → COMPLETED / FAILED
 > упрощается до единого стиля сообщения. Как только реплика допечатана
 > целиком, выводится исходный JSON-компонент со всеми цветами/стилями,
 > как в `/tellraw`. Если нужны разноцветные фрагменты во время печати —
-> пошлите несколько `/storytell` подряд с разными цветами.
+> пошлите несколько `/story tell` подряд с разными цветами.
 
 ---
 
@@ -245,7 +255,7 @@ NOT_STARTED → ACTIVE → COMPLETED / FAILED
 
 Отредактируйте нужный файл. Чтобы изменения подхватились без
 перезапуска — **Моды → Story Engine → Config** (сохранение перезагружает
-конфиг) или `/storymenu reload`. Вернуть исходники — `/storymenu reset`.
+конфиг) или `/story menu reload`. Вернуть исходники — `/story menu reset`.
 Если кастомного файла нет или он битый, меню использует встроенную
 текстуру.
 
@@ -268,7 +278,7 @@ Config**:
 ```
 config/story_engine/
 ├── quests/                 # JSON-описания квестов
-├── heads/                  # PNG-иконки NPC для /storytell
+├── heads/                  # PNG-иконки NPC для /story tell
 ├── menu/                   # PNG-текстуры меню (кастомизация)
 ├── narrative_config.json
 └── story_engine-client.toml   # настройки кастомизации меню
@@ -316,3 +326,4 @@ config/story_engine/
 ---
 
 *Story Engine · версия 1.0.0 · Forge 1.19.2 · автор Lorikowka*
+

@@ -1,4 +1,4 @@
-# Narrative HUD — документация
+﻿# Narrative HUD — документация
 
 ## Обзор
 
@@ -10,7 +10,7 @@ Narrative HUD — модуль «сюжетного чата»: сервер о�
 
 | Класс | Сторона | Назначение |
 |---|---|---|
-| `command/StoryTellCommand.java` | сервер | команда `/storytell` |
+| `command/TellCommand.java` | сервер | команда `/story tell` |
 | `network/S2CStoryChatPacket.java` | обе | пакет: спикер, iconId, `Component` текста |
 | `network/NarrativeNetworking.java` | обе | регистрация пакета на канале `QuestNetworking.CHANNEL` (id=2) + рассылка |
 | `narrative/NarrativeMessage.java` | клиент | модель одного сообщения в очереди |
@@ -19,24 +19,33 @@ Narrative HUD — модуль «сюжетного чата»: сервер о�
 | `client/NarrativeOverlay.java` | клиент | `RenderGuiOverlayEvent` + `ClientTickEvent`: сама отрисовка на экране |
 | `client/TextureBlitHelper.java` | клиент | служебный класс, даёт доступ к protected `blit()` вне `Screen` |
 
-## Команда `/storytell`
+## Команда `/story tell`
 
 ```text
-/storytell <targets> <speaker> <icon> <message>
+/story tell <targets> <speaker> <icon> [color <hex>] <message>
 ```
 
 - `<targets>` — игроки-получатели (`EntityArgument.players()`);
-- `<speaker>` — имя говорящего, в кавычках, если с пробелами: `"Староста"`;
+- `<speaker>` — имя говорящего, `StringArgumentType.string()`: одно слово без
+  кавычек, либо в кавычках, если с пробелами: `"Староста"`;
 - `<icon>` — имя файла иконки без `.png` (например `old_man`).
   `none` — без иконки;
+- `[color <hex>]` — опциональный цвет имени говорящего (без `#`, например
+  `FFAA00`). Если не указан — жёлтый по умолчанию;
 - `<message>` — JSON-компонент текста, как в `/tellraw`
   (например `{"text":"Привет!","color":"gold"}`).
 
-Требует permission level 2. Пример:
+Требует permission level 2. Примеры:
 
 ```text
-/storytell @a "Староста" old_man {"text":"Постойте... кажется, ключ вовсе не в доме."}
+/story tell @a "Староста" old_man {"text":"Постойте... кажется, ключ вовсе не в доме."}
+/story tell @p "Старый дуб" old_man color FFAA00 {"text":"Постойте..."}
 ```
+
+Цвет реплик самого игрока в логе (`NarrativeLogScreen`) задаётся командой
+`/story tell defaultcolor <hex>`.
+
+> Примечание: старая команда `/storytell` остаётся рабочим алиасом.
 
 ## Иконки NPC
 
@@ -99,7 +108,7 @@ config/story_engine/heads/<icon_id>.png
 сохранением стилевых границ", а собственная реализация ради анимации это
 избыточно рискованно ради чисто визуального эффекта. Если для конкретного
 сценария это критично — самый простой обход: слать несколько подряд идущих
-`/storytell` с разным цветом на разные части фразы вместо одного сообщения
+`/story tell` с разным цветом на разные части фразы вместо одного сообщения
 с несколькими цветовыми прогонами.
 
 ## Как расширять
@@ -112,3 +121,4 @@ config/story_engine/heads/<icon_id>.png
 - Поддержать несколько одновременных "говорящих" (сейчас рисуется только
   одно текущее сообщение) — потребует расширения `NarrativeOverlay` под
   несколько слотов вместо одного.
+

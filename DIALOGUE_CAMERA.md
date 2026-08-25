@@ -1,4 +1,4 @@
-# Камера к NPC во время диалога — дизайн-документ
+﻿# Камера к NPC во время диалога — дизайн-документ
 
 ## 1. Проблема
 
@@ -67,20 +67,22 @@ HollowEngine в этой схеме - **один из возможных ист�
   это NPC" - если сущность резолвится, она подходит).
 
 Единственное требование - переданный селектор должен резолвиться в живую
-сущность на сервере **в момент вызова** `/dialogue start`.
+сущность на сервере **в момент вызова** `/story dialogue start`.
 
-## 4. Команда: `/dialogue start`
+## 4. Команда: `/story dialogue start`
+
+> Старое имя `/dialogue start` остаётся рабочим алиасом.
 
 Текущий синтаксис:
 
 ```
-/dialogue start <player> <id> [nodeId]
+/story dialogue start <player> <id> [nodeId]
 ```
 
 Расширяется необязательным аргументом-селектором сущности:
 
 ```
-/dialogue start <player> <id> [nodeId] [npcSelector]
+/story dialogue start <player> <id> [nodeId] [npcSelector]
 ```
 
 - `npcSelector` - `EntityArgument.entity()`, **опциональный**.
@@ -97,7 +99,7 @@ HollowEngine в этой схеме - **один из возможных ист�
 
 ```
 onInteract(npc, player) -> {
-    runCommand("/dialogue start " + player.name + " barman_greeting - " + npc.uuid)
+    runCommand("/story dialogue start " + player.name + " barman_greeting - " + npc.uuid)
 }
 ```
 
@@ -249,7 +251,7 @@ public final class DialogueCameraController {
 
 ## 8. Итоговый чеклист реализации
 
-1. Добавить опциональный аргумент `npcSelector` в `/dialogue start`
+1. Добавить опциональный аргумент `npcSelector` в `/story dialogue start`
    (`DialogueCommand.java`).
 2. Сохранять резолвленный `UUID` сущности в `DialogueSession` на время
    сессии (не дольше).
@@ -263,3 +265,4 @@ public final class DialogueCameraController {
    `doUpdate()` и `onClose()`.
 6. Проверить сценарий "NPC исчез во время диалога" - диалог продолжается,
    камера плавно возвращается, без ошибок в логе.
+
