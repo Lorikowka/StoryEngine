@@ -26,3 +26,9 @@ forge*changelog.txt
 
 # Stray generated artifacts
 src/generated/resources/*.jar
+
+# runtime logs
+logs
+*.log
+*.log.gz
+runclient_attempt.log
