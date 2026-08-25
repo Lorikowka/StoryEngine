@@ -10,6 +10,8 @@ import com.storyengine.network.QuestNetworking;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.network.NetworkDirection;
 import net.minecraftforge.network.NetworkEvent;
 import net.minecraftforge.network.PacketDistributor;
@@ -17,6 +19,8 @@ import net.minecraftforge.network.PacketDistributor;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
+
+import javax.annotation.Nullable;
 
 /**
  * Регистрация и отправка пакетов Dialogue System.
@@ -79,7 +83,22 @@ public final class DialogueNetworking {
                     Component.literal(r.getText() == null ? "" : r.getText()),
                     r.isAvailable(player)));
         }
-        return new DialogueNodePayload(dialogueId, speaker, icon, portrait, text, responses);
+        return new DialogueNodePayload(dialogueId, speaker, icon, portrait, text, responses, resolveNpcPosition(player));
+    }
+
+    /** Сессионный UUID NPC -> мировая позиция глаз на момент отправки (null-безопасно, §5/§6). */
+    @Nullable
+    private static Vec3 resolveNpcPosition(ServerPlayer player) {
+        DialogueSession session = StoryEngineMod.DIALOGUE_MANAGER.getSession(player);
+        UUID npcId = session != null ? session.getNpcId() : null;
+        if (npcId == null) {
+            return null;
+        }
+        Entity npc = player.level().getEntity(npcId);
+        if (npc == null) {
+            return null;
+        }
+        return npc.getEyePosition();
     }
 
     // ============================================================
@@ -92,14 +111,18 @@ public final class DialogueNetworking {
         public final String portrait;
         public final Component text;
         public final List<ResponsePayload> responses;
+        /** null = диалог без привязки к NPC (позиция, а не UUID - см. §5). */
+        @Nullable
+        public final Vec3 npcPosition;
 
-        public DialogueNodePayload(String dialogueId, String speaker, String icon, String portrait, Component text, List<ResponsePayload> responses) {
+        public DialogueNodePayload(String dialogueId, String speaker, String icon, String portrait, Component text, List<ResponsePayload> responses, @Nullable Vec3 npcPosition) {
             this.dialogueId = dialogueId;
             this.speaker = speaker;
             this.icon = icon;
             this.portrait = portrait;
             this.text = text;
             this.responses = responses;
+            this.npcPosition = npcPosition;
         }
     }
 
@@ -124,6 +147,12 @@ public final class DialogueNetworking {
             buffer.writeUtf(Component.Serializer.toJson(r.text == null ? Component.literal("") : r.text));
             buffer.writeBoolean(r.available);
         }
+        buffer.writeBoolean(payload.npcPosition != null);
+        if (payload.npcPosition != null) {
+            buffer.writeDouble(payload.npcPosition.x);
+            buffer.writeDouble(payload.npcPosition.y);
+            buffer.writeDouble(payload.npcPosition.z);
+        }
     }
 
     static DialogueNodePayload decodePayload(FriendlyByteBuf buffer) {
@@ -139,7 +168,11 @@ public final class DialogueNetworking {
             boolean available = buffer.readBoolean();
             responses.add(new ResponsePayload(rtext, available));
         }
-        return new DialogueNodePayload(dialogueId, speaker, icon, portrait, text, responses);
+        Vec3 npcPosition = null;
+        if (buffer.readBoolean()) {
+            npcPosition = new Vec3(buffer.readDouble(), buffer.readDouble(), buffer.readDouble());
+        }
+        return new DialogueNodePayload(dialogueId, speaker, icon, portrait, text, responses, npcPosition);
     }
 
     // ============================================================
