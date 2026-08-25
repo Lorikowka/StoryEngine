@@ -4,6 +4,7 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.DoubleArgumentType;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import com.storyengine.StoryEngineMod;
@@ -25,95 +26,92 @@ import net.minecraft.commands.arguments.ResourceLocationArgument;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.server.ServerLifecycleHooks;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
 
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Регистрирует команду /quest и все её под-команды:
+ * Подкоманда {@code /story quest} и алиас {@code /quest}:
  *
- *  /quest create <id> [title]
- *  /quest reload
- *  /quest start <player> <id>
- *  /quest complete <player> <id>
- *  /quest fail <player> <id>
- *  /quest reset <player> <id>
- *  /quest list
+ *   /story quest create <id> [title]
+ *   /story quest delete <id>
+ *   /story quest reload
+ *   /story quest list
+ *   /story quest notify <title> <text>
+ *   /story quest start <player> <id>
+ *   /story quest complete <player> <id>
+ *   /story quest fail <player> <id>
+ *   /story quest reset <player> <id>
+ *   /story quest task complete|remove|edit|add ...
+ *   /story quest edit <id> title|description <text>
+ *
+ * Все команды требуют permission level 2.
  */
-@Mod.EventBusSubscriber(modid = StoryEngineMod.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public final class QuestCommand {
 
     private QuestCommand() {
     }
 
-    @SubscribeEvent
-    public static void onRegisterCommands(RegisterCommandsEvent event) {
-        register(event.getDispatcher());
-    }
-
-    public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
-        dispatcher.register(Commands.literal("quest")
+    public static LiteralArgumentBuilder<CommandSourceStack> build(String literal) {
+        return Commands.literal(literal)
                 .requires(source -> source.hasPermission(2))
 
-                // /quest create <id> [title]
+                // /story quest create <id> [title]
                 .then(Commands.literal("create")
                         .then(Commands.argument("id", StringArgumentType.word())
                                 .executes(ctx -> createQuest(ctx, null))
                                 .then(Commands.argument("title", StringArgumentType.greedyString())
                                         .executes(ctx -> createQuest(ctx, StringArgumentType.getString(ctx, "title"))))))
 
-                // /quest delete <id> - полностью удаляет квест (кэш + файл на диске)
+                // /story quest delete <id> - полностью удаляет квест (кэш + файл на диске)
                 .then(Commands.literal("delete")
                         .then(Commands.argument("id", StringArgumentType.word())
                                 .suggests(QuestCommand::suggestQuestIds)
                                 .executes(QuestCommand::deleteQuest)))
 
-                // /quest reload
+                // /story quest reload
                 .then(Commands.literal("reload")
                         .executes(QuestCommand::reload))
 
-                // /quest list
+                // /story quest list
                 .then(Commands.literal("list")
                         .executes(QuestCommand::list))
 
-                // /quest notify <title> <text> - тост всем игрокам, квесты не трогает
+                // /story quest notify <title> <text> - тост всем игрокам, квесты не трогает
                 .then(Commands.literal("notify")
                         .then(Commands.argument("title", StringArgumentType.string())
                                 .then(Commands.argument("text", StringArgumentType.greedyString())
                                         .executes(QuestCommand::notify))))
 
-                // /quest start <player> <id>
+                // /story quest start <player> <id>
                 .then(Commands.literal("start")
                         .then(Commands.argument("player", EntityArgument.player())
                                 .then(Commands.argument("id", StringArgumentType.word())
                                         .suggests(QuestCommand::suggestQuestIds)
                                         .executes(ctx -> startQuest(ctx)))))
 
-                // /quest complete <player> <id>
+                // /story quest complete <player> <id>
                 .then(Commands.literal("complete")
                         .then(Commands.argument("player", EntityArgument.player())
                                 .then(Commands.argument("id", StringArgumentType.word())
                                         .suggests(QuestCommand::suggestQuestIds)
                                         .executes(ctx -> completeQuest(ctx)))))
 
-                // /quest fail <player> <id>
+                // /story quest fail <player> <id>
                 .then(Commands.literal("fail")
                         .then(Commands.argument("player", EntityArgument.player())
                                 .then(Commands.argument("id", StringArgumentType.word())
                                         .suggests(QuestCommand::suggestQuestIds)
                                         .executes(ctx -> failQuest(ctx)))))
 
-                // /quest reset <player> <id>
+                // /story quest reset <player> <id>
                 .then(Commands.literal("reset")
                         .then(Commands.argument("player", EntityArgument.player())
                                 .then(Commands.argument("id", StringArgumentType.word())
                                         .suggests(QuestCommand::suggestQuestIds)
                                         .executes(ctx -> resetQuest(ctx)))))
 
-                // /quest task complete <player> <questId> <taskId>
+                // /story quest task complete <player> <questId> <taskId>
                 .then(Commands.literal("task")
                         .then(Commands.literal("complete")
                                 .then(Commands.argument("player", EntityArgument.player())
@@ -123,7 +121,7 @@ public final class QuestCommand {
                                                         .suggests(QuestCommand::suggestTaskIds)
                                                         .executes(QuestCommand::completeTask)))))
 
-                        // /quest task remove <questId> <taskId>
+                        // /story quest task remove <questId> <taskId>
                         .then(Commands.literal("remove")
                                 .then(Commands.argument("questId", StringArgumentType.word())
                                         .suggests(QuestCommand::suggestQuestIds)
@@ -131,7 +129,7 @@ public final class QuestCommand {
                                                 .suggests(QuestCommand::suggestTaskIds)
                                                 .executes(QuestCommand::removeTask))))
 
-                        // /quest task edit <questId> <taskId> title|description <text>
+                        // /story quest task edit <questId> <taskId> title|description <text>
                         .then(Commands.literal("edit")
                                 .then(Commands.argument("questId", StringArgumentType.word())
                                         .suggests(QuestCommand::suggestQuestIds)
@@ -144,7 +142,7 @@ public final class QuestCommand {
                                                         .then(Commands.argument("text", StringArgumentType.greedyString())
                                                                 .executes(ctx -> editTask(ctx, false)))))))
 
-                        // /quest task add manual <questId> <taskId> <title>
+                        // /story quest task add manual <questId> <taskId> <title>
                         .then(Commands.literal("add")
                                 .then(Commands.literal("manual")
                                         .then(Commands.argument("questId", StringArgumentType.word())
@@ -153,7 +151,7 @@ public final class QuestCommand {
                                                         .then(Commands.argument("title", StringArgumentType.greedyString())
                                                                 .executes(QuestCommand::addManualTask)))))
 
-                                // /quest task add location <questId> <taskId> <dimension> <x> <y> <z> <radius> <title...>
+                                // /story quest task add location <questId> <taskId> <dimension> <x> <y> <z> <radius> <title...>
                                 .then(Commands.literal("location")
                                         .then(Commands.argument("questId", StringArgumentType.word())
                                                 .suggests(QuestCommand::suggestQuestIds)
@@ -166,7 +164,7 @@ public final class QuestCommand {
                                                                                                 .then(Commands.argument("title", StringArgumentType.greedyString())
                                                                                                         .executes(QuestCommand::addLocationTask))))))))))
 
-                                // /quest task add item <questId> <taskId> <itemId> <count> <title...>
+                                // /story quest task add item <questId> <taskId> <itemId> <count> <title...>
                                 .then(Commands.literal("item")
                                         .then(Commands.argument("questId", StringArgumentType.word())
                                                 .suggests(QuestCommand::suggestQuestIds)
@@ -176,7 +174,7 @@ public final class QuestCommand {
                                                                         .then(Commands.argument("title", StringArgumentType.greedyString())
                                                                                 .executes(QuestCommand::addItemTask)))))))
 
-                                // /quest task add block <questId> <taskId> <blockId> <count> <title...>
+                                // /story quest task add block <questId> <taskId> <blockId> <count> <title...>
                                 .then(Commands.literal("block")
                                         .then(Commands.argument("questId", StringArgumentType.word())
                                                 .suggests(QuestCommand::suggestQuestIds)
@@ -186,7 +184,7 @@ public final class QuestCommand {
                                                                         .then(Commands.argument("title", StringArgumentType.greedyString())
                                                                                 .executes(QuestCommand::addBlockTask)))))))
 
-                                // /quest task add kill <questId> <taskId> <entityType> <count> <title...>
+                                // /story quest task add kill <questId> <taskId> <entityType> <count> <title...>
                                 .then(Commands.literal("kill")
                                         .then(Commands.argument("questId", StringArgumentType.word())
                                                 .suggests(QuestCommand::suggestQuestIds)
@@ -196,8 +194,8 @@ public final class QuestCommand {
                                                                         .then(Commands.argument("title", StringArgumentType.greedyString())
                                                                                 .executes(QuestCommand::addKillTask)))))))))
 
-                // /quest edit <id> title <text...>
-                // /quest edit <id> description <text...>
+                // /story quest edit <id> title <text...>
+                // /story quest edit <id> description <text...>
                 .then(Commands.literal("edit")
                         .then(Commands.argument("id", StringArgumentType.word())
                                 .suggests(QuestCommand::suggestQuestIds)
@@ -206,12 +204,11 @@ public final class QuestCommand {
                                                 .executes(ctx -> editQuest(ctx, true))))
                                 .then(Commands.literal("description")
                                         .then(Commands.argument("text", StringArgumentType.greedyString())
-                                                .executes(ctx -> editQuest(ctx, false))))))
-        );
+                                                .executes(ctx -> editQuest(ctx, false))))));
     }
 
     // ----------------------------------------------------------------
-    // /quest create
+    // /story quest create
     // ----------------------------------------------------------------
     private static int createQuest(CommandContext<CommandSourceStack> ctx, String title) {
         CommandSourceStack source = ctx.getSource();
@@ -219,25 +216,21 @@ public final class QuestCommand {
         QuestManager manager = StoryEngineMod.QUEST_MANAGER;
 
         if (manager.exists(id)) {
-            source.sendFailure(Component.literal("Квест с id '" + id + "' уже существует."));
-            return 0;
+            return CommandFeedback.fail(source, "Квест с id '" + id + "' уже существует.");
         }
 
         QuestData data = manager.createTemplate(id, title);
         if (!data.getPrerequisites().isEmpty()) {
-            source.sendSuccess(Component.literal(
-                    "Создан шаблон квеста '" + data.getId() + "' (" + data.getTitle() + ") с примером prerequisites и несколькими типами задач."
-            ), true);
+            return CommandFeedback.success(source,
+                    "Создан шаблон квеста '" + data.getId() + "' (" + data.getTitle() + ") с примером prerequisites и несколькими типами задач.");
         } else {
-            source.sendSuccess(Component.literal(
-                    "Создан шаблон квеста '" + data.getId() + "' (" + data.getTitle() + ") в config/story_engine/quests/"
-            ), true);
+            return CommandFeedback.success(source,
+                    "Создан шаблон квеста '" + data.getId() + "' (" + data.getTitle() + ") в config/story_engine/quests/");
         }
-        return 1;
     }
 
     // ----------------------------------------------------------------
-    // /quest delete <id>
+    // /story quest delete <id>
     // ----------------------------------------------------------------
     private static int deleteQuest(CommandContext<CommandSourceStack> ctx) {
         CommandSourceStack source = ctx.getSource();
@@ -245,8 +238,7 @@ public final class QuestCommand {
         QuestManager manager = StoryEngineMod.QUEST_MANAGER;
 
         if (!manager.exists(id)) {
-            source.sendFailure(Component.literal("Квест с id '" + id + "' не найден."));
-            return 0;
+            return CommandFeedback.fail(source, "Квест с id '" + id + "' не найден.");
         }
 
         String title = manager.getQuest(id).map(QuestData::getTitle).orElse(id);
@@ -261,14 +253,12 @@ public final class QuestCommand {
             com.storyengine.network.QuestNetworking.syncToPlayer(online);
         }
 
-        source.sendSuccess(Component.literal(
-                "Квест '" + id + "' (" + title + ") удалён полностью (кэш + файл на диске)."
-        ), true);
-        return 1;
+        return CommandFeedback.success(source,
+                "Квест '" + id + "' (" + title + ") удалён полностью (кэш + файл на диске).");
     }
 
     // ----------------------------------------------------------------
-    // /quest notify <title> <text> - тост всем игрокам, квестов не касается
+    // /story quest notify <title> <text> - тост всем игрокам, квестов не касается
     // ----------------------------------------------------------------
     private static int notify(CommandContext<CommandSourceStack> ctx) {
         CommandSourceStack source = ctx.getSource();
@@ -277,12 +267,11 @@ public final class QuestCommand {
 
         com.storyengine.network.QuestNetworking.sendToastToAll(title, text);
 
-        source.sendSuccess(Component.literal("Уведомление отправлено всем игрокам онлайн."), true);
-        return 1;
+        return CommandFeedback.success(source, "Уведомление отправлено всем игрокам онлайн.");
     }
 
     // ----------------------------------------------------------------
-    // /quest reload
+    // /story quest reload
     // ----------------------------------------------------------------
     private static int reload(CommandContext<CommandSourceStack> ctx) {
         CommandSourceStack source = ctx.getSource();
@@ -290,33 +279,32 @@ public final class QuestCommand {
         for (ServerPlayer player : ServerLifecycleHooks.getCurrentServer().getPlayerList().getPlayers()) {
             com.storyengine.network.QuestNetworking.syncToPlayer(player);
         }
-        source.sendSuccess(Component.literal(
-                "Квесты перезагружены. Загружено: " + StoryEngineMod.QUEST_MANAGER.size()
-        ), true);
-        return StoryEngineMod.QUEST_MANAGER.size();
+        int size = StoryEngineMod.QUEST_MANAGER.size();
+        CommandFeedback.success(source, "Квесты перезагружены. Загружено: " + size);
+        return size;
     }
 
     // ----------------------------------------------------------------
-    // /quest list
+    // /story quest list
     // ----------------------------------------------------------------
     private static int list(CommandContext<CommandSourceStack> ctx) {
         CommandSourceStack source = ctx.getSource();
         QuestManager manager = StoryEngineMod.QUEST_MANAGER;
 
         if (manager.getAllQuests().isEmpty()) {
-            source.sendSuccess(Component.literal("Нет загруженных квестов."), false);
+            CommandFeedback.info(source, "Нет загруженных квестов.");
             return 0;
         }
 
-        source.sendSuccess(Component.literal("Загруженные квесты (" + manager.size() + "):"), false);
+        CommandFeedback.info(source, "Загруженные квесты (" + manager.size() + "):");
         for (QuestData quest : manager.getAllQuests()) {
-            source.sendSuccess(Component.literal(" - " + quest.getId() + ": " + quest.getTitle()), false);
+            CommandFeedback.info(source, " - " + quest.getId() + ": " + quest.getTitle());
         }
         return manager.size();
     }
 
     // ----------------------------------------------------------------
-    // /quest start
+    // /story quest start
     // ----------------------------------------------------------------
     private static int startQuest(CommandContext<CommandSourceStack> ctx) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
         CommandSourceStack source = ctx.getSource();
@@ -324,20 +312,17 @@ public final class QuestCommand {
         String questId = StringArgumentType.getString(ctx, "id");
 
         if (!StoryEngineMod.QUEST_MANAGER.exists(questId)) {
-            source.sendFailure(Component.literal("Квест '" + questId + "' не найден."));
-            return 0;
+            return CommandFeedback.fail(source, "Квест '" + questId + "' не найден.");
         }
 
         PlayerQuestDataHelper.setStatus(player, questId, QuestStatus.ACTIVE);
         com.storyengine.network.QuestNetworking.syncToPlayer(player);
-        source.sendSuccess(Component.literal(
-                "Квест '" + questId + "' переведён в статус ACTIVE у игрока " + player.getName().getString()
-        ), true);
-        return 1;
+        return CommandFeedback.success(source,
+                "Квест '" + questId + "' переведён в статус ACTIVE у игрока " + player.getName().getString());
     }
 
     // ----------------------------------------------------------------
-    // /quest complete
+    // /story quest complete
     // ----------------------------------------------------------------
     private static int completeQuest(CommandContext<CommandSourceStack> ctx) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
         CommandSourceStack source = ctx.getSource();
@@ -346,8 +331,7 @@ public final class QuestCommand {
 
         var questOpt = StoryEngineMod.QUEST_MANAGER.getQuest(questId);
         if (questOpt.isEmpty()) {
-            source.sendFailure(Component.literal("Квест '" + questId + "' не найден."));
-            return 0;
+            return CommandFeedback.fail(source, "Квест '" + questId + "' не найден.");
         }
 
         QuestData quest = questOpt.get();
@@ -368,15 +352,13 @@ public final class QuestCommand {
             source.getServer().getCommands().performPrefixedCommand(rewardSource, command);
         }
 
-        source.sendSuccess(Component.literal(
+        return CommandFeedback.success(source,
                 "Квест '" + questId + "' завершён (COMPLETED) у игрока " + player.getName().getString()
-                        + ". Выполнено команд награды: " + quest.getRewards().getCommands().size()
-        ), true);
-        return 1;
+                        + ". Выполнено команд награды: " + quest.getRewards().getCommands().size());
     }
 
     // ----------------------------------------------------------------
-    // /quest fail
+    // /story quest fail
     // ----------------------------------------------------------------
     private static int failQuest(CommandContext<CommandSourceStack> ctx) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
         CommandSourceStack source = ctx.getSource();
@@ -385,22 +367,19 @@ public final class QuestCommand {
 
         var questOpt = StoryEngineMod.QUEST_MANAGER.getQuest(questId);
         if (questOpt.isEmpty()) {
-            source.sendFailure(Component.literal("Квест '" + questId + "' не найден."));
-            return 0;
+            return CommandFeedback.fail(source, "Квест '" + questId + "' не найден.");
         }
         QuestData quest = questOpt.get();
 
         PlayerQuestDataHelper.setStatus(player, questId, QuestStatus.FAILED);
         com.storyengine.network.QuestNetworking.sendQuestStatusMessage(player, "Квест '" + quest.getTitle() + "' провален");
         com.storyengine.network.QuestNetworking.syncToPlayer(player);
-        source.sendSuccess(Component.literal(
-                "Квест '" + questId + "' переведён в статус FAILED у игрока " + player.getName().getString()
-        ), true);
-        return 1;
+        return CommandFeedback.success(source,
+                "Квест '" + questId + "' переведён в статус FAILED у игрока " + player.getName().getString());
     }
 
     // ----------------------------------------------------------------
-    // /quest task complete
+    // /story quest task complete
     // ----------------------------------------------------------------
     private static int completeTask(CommandContext<CommandSourceStack> ctx) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
         CommandSourceStack source = ctx.getSource();
@@ -410,20 +389,17 @@ public final class QuestCommand {
 
         var questOpt = StoryEngineMod.QUEST_MANAGER.getQuest(questId);
         if (questOpt.isEmpty()) {
-            source.sendFailure(Component.literal("Квест '" + questId + "' не найден."));
-            return 0;
+            return CommandFeedback.fail(source, "Квест '" + questId + "' не найден.");
         }
 
         QuestData quest = questOpt.get();
         boolean taskExists = quest.getTasks().stream().anyMatch(task -> task.getId().equals(taskId));
         if (!taskExists) {
-            source.sendFailure(Component.literal("Подзадача '" + taskId + "' не найдена в квесте '" + questId + "'."));
-            return 0;
+            return CommandFeedback.fail(source, "Подзадача '" + taskId + "' не найдена в квесте '" + questId + "'.");
         }
 
         if (PlayerQuestDataHelper.getStatus(player, questId) != QuestStatus.ACTIVE) {
-            source.sendFailure(Component.literal("Квест '" + questId + "' не активен (ACTIVE) у игрока " + player.getName().getString() + "."));
-            return 0;
+            return CommandFeedback.fail(source, "Квест '" + questId + "' не активен (ACTIVE) у игрока " + player.getName().getString() + ".");
         }
 
         PlayerQuestDataHelper.completeTask(player, questId, taskId);
@@ -442,14 +418,12 @@ public final class QuestCommand {
             com.storyengine.network.QuestNetworking.sendQuestStatusMessage(player, "Квест '" + quest.getTitle() + "' выполнен");
         }
 
-        source.sendSuccess(Component.literal(
-                "Подзадача '" + taskId + "' квеста '" + questId + "' отмечена выполненной у игрока " + player.getName().getString()
-        ), true);
-        return 1;
+        return CommandFeedback.success(source,
+                "Подзадача '" + taskId + "' квеста '" + questId + "' отмечена выполненной у игрока " + player.getName().getString());
     }
 
     // ----------------------------------------------------------------
-    // /quest edit <id> title|description <text>
+    // /story quest edit <id> title|description <text>
     // ----------------------------------------------------------------
     private static int editQuest(CommandContext<CommandSourceStack> ctx, boolean editTitle) {
         CommandSourceStack source = ctx.getSource();
@@ -458,8 +432,7 @@ public final class QuestCommand {
 
         var questOpt = StoryEngineMod.QUEST_MANAGER.getQuest(id);
         if (questOpt.isEmpty()) {
-            source.sendFailure(Component.literal("Квест '" + id + "' не найден."));
-            return 0;
+            return CommandFeedback.fail(source, "Квест '" + id + "' не найден.");
         }
 
         QuestData quest = questOpt.get();
@@ -478,14 +451,12 @@ public final class QuestCommand {
             com.storyengine.network.QuestNetworking.syncToPlayer(online);
         }
 
-        source.sendSuccess(Component.literal(
-                (editTitle ? "Название" : "Описание") + " квеста '" + id + "' обновлено: " + text
-        ), true);
-        return 1;
+        return CommandFeedback.success(source,
+                (editTitle ? "Название" : "Описание") + " квеста '" + id + "' обновлено: " + text);
     }
 
     // ----------------------------------------------------------------
-    // /quest task remove <questId> <taskId>
+    // /story quest task remove <questId> <taskId>
     // ----------------------------------------------------------------
     private static int removeTask(CommandContext<CommandSourceStack> ctx) {
         CommandSourceStack source = ctx.getSource();
@@ -494,26 +465,22 @@ public final class QuestCommand {
 
         var questOpt = StoryEngineMod.QUEST_MANAGER.getQuest(questId);
         if (questOpt.isEmpty()) {
-            source.sendFailure(Component.literal("Квест '" + questId + "' не найден."));
-            return 0;
+            return CommandFeedback.fail(source, "Квест '" + questId + "' не найден.");
         }
 
         QuestData quest = questOpt.get();
         boolean removed = quest.getTasks().removeIf(task -> task.getId().equals(taskId));
         if (!removed) {
-            source.sendFailure(Component.literal("Подзадача '" + taskId + "' не найдена в квесте '" + questId + "'."));
-            return 0;
+            return CommandFeedback.fail(source, "Подзадача '" + taskId + "' не найдена в квесте '" + questId + "'.");
         }
 
         applyTaskListChange(quest);
-        source.sendSuccess(Component.literal(
-                "Подзадача '" + taskId + "' удалена из квеста '" + questId + "'."
-        ), true);
-        return 1;
+        return CommandFeedback.success(source,
+                "Подзадача '" + taskId + "' удалена из квеста '" + questId + "'.");
     }
 
     // ----------------------------------------------------------------
-    // /quest task edit <questId> <taskId> title|description <text>
+    // /story quest task edit <questId> <taskId> title|description <text>
     // ----------------------------------------------------------------
     private static int editTask(CommandContext<CommandSourceStack> ctx, boolean editTitle) {
         CommandSourceStack source = ctx.getSource();
@@ -523,15 +490,13 @@ public final class QuestCommand {
 
         var questOpt = StoryEngineMod.QUEST_MANAGER.getQuest(questId);
         if (questOpt.isEmpty()) {
-            source.sendFailure(Component.literal("Квест '" + questId + "' не найден."));
-            return 0;
+            return CommandFeedback.fail(source, "Квест '" + questId + "' не найден.");
         }
 
         QuestData quest = questOpt.get();
         var taskOpt = quest.getTasks().stream().filter(task -> task.getId().equals(taskId)).findFirst();
         if (taskOpt.isEmpty()) {
-            source.sendFailure(Component.literal("Подзадача '" + taskId + "' не найдена в квесте '" + questId + "'."));
-            return 0;
+            return CommandFeedback.fail(source, "Подзадача '" + taskId + "' не найдена в квесте '" + questId + "'.");
         }
 
         QuestTask task = taskOpt.get();
@@ -542,14 +507,12 @@ public final class QuestCommand {
         }
 
         applyTaskListChange(quest);
-        source.sendSuccess(Component.literal(
-                (editTitle ? "Название" : "Описание") + " подзадачи '" + taskId + "' обновлено: " + text
-        ), true);
-        return 1;
+        return CommandFeedback.success(source,
+                (editTitle ? "Название" : "Описание") + " подзадачи '" + taskId + "' обновлено: " + text);
     }
 
     // ----------------------------------------------------------------
-    // /quest task add manual|location|item|block|kill
+    // /story quest task add manual|location|item|block|kill
     // ----------------------------------------------------------------
     private static int addManualTask(CommandContext<CommandSourceStack> ctx) {
         String title = StringArgumentType.getString(ctx, "title");
@@ -607,7 +570,7 @@ public final class QuestCommand {
     }
 
     /**
-     * Общая часть всех "/quest task add ..." - проверка квеста/дубликата id,
+     * Общая часть всех "/story quest task add ..." - проверка квеста/дубликата id,
      * добавление в список задач, сохранение и рассылка изменений.
      */
     private static int finishAddTask(CommandContext<CommandSourceStack> ctx, QuestTask task, String title) {
@@ -616,24 +579,20 @@ public final class QuestCommand {
 
         var questOpt = StoryEngineMod.QUEST_MANAGER.getQuest(questId);
         if (questOpt.isEmpty()) {
-            source.sendFailure(Component.literal("Квест '" + questId + "' не найден."));
-            return 0;
+            return CommandFeedback.fail(source, "Квест '" + questId + "' не найден.");
         }
 
         QuestData quest = questOpt.get();
         boolean duplicate = quest.getTasks().stream().anyMatch(existing -> existing.getId().equals(task.getId()));
         if (duplicate) {
-            source.sendFailure(Component.literal("Подзадача с id '" + task.getId() + "' уже существует в квесте '" + questId + "'."));
-            return 0;
+            return CommandFeedback.fail(source, "Подзадача с id '" + task.getId() + "' уже существует в квесте '" + questId + "'.");
         }
 
         quest.getTasks().add(task);
         applyTaskListChange(quest);
 
-        source.sendSuccess(Component.literal(
-                "Подзадача '" + task.getId() + "' (" + title + ") добавлена в квест '" + questId + "'."
-        ), true);
-        return 1;
+        return CommandFeedback.success(source,
+                "Подзадача '" + task.getId() + "' (" + title + ") добавлена в квест '" + questId + "'.");
     }
 
     /**
@@ -649,7 +608,7 @@ public final class QuestCommand {
     }
 
     // ----------------------------------------------------------------
-    // /quest reset
+    // /story quest reset
     // ----------------------------------------------------------------
     private static int resetQuest(CommandContext<CommandSourceStack> ctx) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
         CommandSourceStack source = ctx.getSource();
@@ -658,10 +617,8 @@ public final class QuestCommand {
 
         PlayerQuestDataHelper.reset(player, questId);
         com.storyengine.network.QuestNetworking.syncToPlayer(player);
-        source.sendSuccess(Component.literal(
-                "Прогресс квеста '" + questId + "' сброшен у игрока " + player.getName().getString()
-        ), true);
-        return 1;
+        return CommandFeedback.success(source,
+                "Прогресс квеста '" + questId + "' сброшен у игрока " + player.getName().getString());
     }
 
     // ----------------------------------------------------------------
