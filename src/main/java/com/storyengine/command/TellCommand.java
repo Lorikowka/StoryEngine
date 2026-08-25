@@ -3,6 +3,7 @@ package com.storyengine.command;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
+import com.mojang.brigadier.builder.RequiredArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.storyengine.StoryEngineMod;
@@ -12,6 +13,7 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.ComponentArgument;
 import net.minecraft.commands.arguments.EntityArgument;
+import net.minecraft.commands.arguments.selector.EntitySelector;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -37,23 +39,44 @@ public final class TellCommand {
     }
 
     public static LiteralArgumentBuilder<CommandSourceStack> build(String literal) {
-        return Commands.literal(literal)
-                .requires(source -> source.hasPermission(2))
-                .then(Commands.argument("targets", EntityArgument.players())
-                        .then(Commands.argument("speaker", StringArgumentType.string())
-                                // без цвета - используется жёлтый по умолчанию
-                                .then(Commands.argument("icon", StringArgumentType.word())
-                                        .then(Commands.argument("message", ComponentArgument.textComponent())
-                                                .executes(ctx -> run(ctx, NarrativeMessage.DEFAULT_NAME_COLOR))))
-                                // /story tell ... color <hex> <message>
-                                .then(Commands.literal("color")
-                                        .then(Commands.argument("hex", StringArgumentType.word())
-                                                .then(Commands.argument("message", ComponentArgument.textComponent())
-                                                        .executes(TellCommand::runWithColor)))))))
-                // /story tell defaultcolor <hex> - цвет реплик игрока в NarrativeLogScreen
-                .then(Commands.literal("defaultcolor")
-                        .then(Commands.argument("hex", StringArgumentType.word())
-                                .executes(TellCommand::setDefaultColor))));
+        LiteralArgumentBuilder<CommandSourceStack> root = Commands.literal(literal)
+                .requires(source -> source.hasPermission(2));
+
+        // /story tell <targets> <speaker> <icon> <message>
+        RequiredArgumentBuilder<CommandSourceStack, EntitySelector> targets =
+                Commands.argument("targets", EntityArgument.players());
+
+        // без цвета - используется жёлтый по умолчанию
+        RequiredArgumentBuilder<CommandSourceStack, Component> message =
+                Commands.argument("message", ComponentArgument.textComponent())
+                        .executes(ctx -> run(ctx, NarrativeMessage.DEFAULT_NAME_COLOR));
+
+        // /story tell ... color <hex> <message>
+        RequiredArgumentBuilder<CommandSourceStack, Component> colorMessage =
+                Commands.argument("message", ComponentArgument.textComponent())
+                        .executes(TellCommand::runWithColor);
+        RequiredArgumentBuilder<CommandSourceStack, String> hex =
+                Commands.argument("hex", StringArgumentType.word()).then(colorMessage);
+        LiteralArgumentBuilder<CommandSourceStack> colorBranch =
+                Commands.literal("color").then(hex);
+
+        RequiredArgumentBuilder<CommandSourceStack, String> icon =
+                Commands.argument("icon", StringArgumentType.word())
+                        .then(message)
+                        .then(colorBranch);
+
+        RequiredArgumentBuilder<CommandSourceStack, String> speaker =
+                Commands.argument("speaker", StringArgumentType.string()).then(icon);
+
+        targets.then(speaker);
+        root.then(targets);
+
+        // /story tell defaultcolor <hex> - цвет реплик игрока в NarrativeLogScreen
+        root.then(Commands.literal("defaultcolor")
+                .then(Commands.argument("hex", StringArgumentType.word())
+                        .executes(TellCommand::setDefaultColor)));
+
+        return root;
     }
 
     private static int setDefaultColor(CommandContext<CommandSourceStack> ctx) {
