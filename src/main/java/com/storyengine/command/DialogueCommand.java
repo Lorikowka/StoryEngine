@@ -13,12 +13,20 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.commands.arguments.EntityArgument;
+import net.minecraft.commands.arguments.selector.EntitySelector;
+import net.minecraft.commands.arguments.selector.EntitySelectorParser;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
+import com.mojang.logging.LogUtils;
+import org.slf4j.Logger;
+
+import javax.annotation.Nullable;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -33,6 +41,8 @@ import java.util.concurrent.CompletableFuture;
  */
 @Mod.EventBusSubscriber(modid = StoryEngineMod.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public final class DialogueCommand {
+
+    private static final Logger LOGGER = LogUtils.getLogger();
 
     private DialogueCommand() {
     }
@@ -61,15 +71,19 @@ public final class DialogueCommand {
                 .then(Commands.literal("list")
                         .executes(DialogueCommand::list))
 
-                // /dialogue start <player> <id> [nodeId]
+                // /dialogue start <player> <id> [nodeId] [npcSelector]
                 .then(Commands.literal("start")
                         .then(Commands.argument("player", EntityArgument.player())
                                 .then(Commands.argument("id", StringArgumentType.word())
                                         .suggests(DialogueCommand::suggestDialogueIds)
-                                        .executes(ctx -> start(ctx, null))
+                                        .executes(ctx -> start(ctx, null, null))
                                         .then(Commands.argument("nodeId", StringArgumentType.word())
                                                 .suggests(DialogueCommand::suggestNodeIds)
-                                                .executes(ctx -> start(ctx, StringArgumentType.getString(ctx, "nodeId")))))))
+                                                .executes(ctx -> start(ctx, StringArgumentType.getString(ctx, "nodeId"), null))
+                                                .then(Commands.argument("npcSelector", StringArgumentType.word())
+                                                        .executes(ctx -> start(ctx,
+                                                                StringArgumentType.getString(ctx, "nodeId"),
+                                                                StringArgumentType.getString(ctx, "npcSelector"))))))))
 
                 // /dialogue stop <player>
                 .then(Commands.literal("stop")
@@ -127,10 +141,27 @@ public final class DialogueCommand {
     // ----------------------------------------------------------------
     // /dialogue start
     // ----------------------------------------------------------------
-    private static int start(CommandContext<CommandSourceStack> ctx, String nodeId) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+    private static int start(CommandContext<CommandSourceStack> ctx, @Nullable String nodeId, @Nullable String npcSelector) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
         CommandSourceStack source = ctx.getSource();
         ServerPlayer player = EntityArgument.getPlayer(ctx, "player");
         String id = StringArgumentType.getString(ctx, "id");
+
+        // Резолвим опциональный селектор NPC. Если не передан, не резолвится
+        // или сущность отсутствует - стартуем диалог без привязки камеры
+        // (по дизайн-документу DIALOGUE_CAMERA.md §4, без падения команды).
+        UUID npcId = null;
+        if (npcSelector != null && !npcSelector.isBlank()) {
+            try {
+                EntitySelector selector = new EntitySelectorParser(new com.mojang.brigadier.StringReader(npcSelector)).parse();
+                Entity entity = selector.findSingleEntity(source);
+                if (entity != null) {
+                    npcId = entity.getUUID();
+                }
+            } catch (com.mojang.brigadier.exceptions.CommandSyntaxException e) {
+                LOGGER.warn("[StoryEngine] npcSelector '{}' не резолвится в живую сущность, диалог стартует без камеры: {}",
+                        npcSelector, e.getMessage());
+            }
+        }
 
         if (!StoryEngineMod.DIALOGUE_MANAGER.dialogueExists(id)) {
             source.sendFailure(Component.literal("Диалог '" + id + "' не найден."));
@@ -138,7 +169,7 @@ public final class DialogueCommand {
         }
 
         DialogueManager manager = StoryEngineMod.DIALOGUE_MANAGER;
-        if (manager.start(player, id, nodeId) == null) {
+        if (manager.start(player, id, nodeId, npcId) == null) {
             source.sendFailure(Component.literal("Не удалось начать диалог '" + id + "' (узел не найден)."));
             return 0;
         }

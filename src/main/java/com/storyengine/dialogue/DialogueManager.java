@@ -215,7 +215,7 @@ public class DialogueManager {
     // Сессии
     // ----------------------------------------------------------------
     @Nullable
-    public DialogueSession start(ServerPlayer player, String dialogueId, @Nullable String nodeId) {
+    public DialogueSession start(ServerPlayer player, String dialogueId, @Nullable String nodeId, @Nullable UUID npcId) {
         Optional<DialogueMeta> metaOpt = loadDialogue(dialogueId);
         if (metaOpt.isEmpty()) {
             return null;
@@ -225,7 +225,7 @@ public class DialogueManager {
             LOGGER.warn("[StoryEngine] Стартовый узел '{}' не найден в диалоге '{}'", startNode, dialogueId);
             return null;
         }
-        DialogueSession session = new DialogueSession(player, dialogueId, startNode);
+        DialogueSession session = new DialogueSession(player, dialogueId, startNode, npcId);
         sessions.put(player.getUUID(), session);
         return session;
     }
