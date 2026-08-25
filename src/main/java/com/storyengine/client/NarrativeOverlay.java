@@ -9,6 +9,8 @@ import com.storyengine.narrative.NarrativeMessage;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.Style;
+import net.minecraft.network.chat.TextColor;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraftforge.api.distmarker.Dist;
@@ -82,13 +84,22 @@ public final class NarrativeOverlay {
 
         ResourceLocation icon = DynamicHeadManager.getOrLoad(message.getIconId());
         String rawSpeaker = message.getSpeaker() == null ? "" : message.getSpeaker().trim();
-        String speaker = rawSpeaker.isEmpty() ? "" : "[" + rawSpeaker + "]";
+        boolean hasSpeaker = !rawSpeaker.isEmpty();
         int iconAreaWidth = icon != null ? ICON_SIZE + ICON_GAP : 0;
 
         Component fullText = message.getText();
         List<FormattedCharSequence> fullLines = font.split(fullText, TEXT_WRAP_WIDTH);
 
-        int nameWidth = speaker.isBlank() ? 0 : font.width(speaker);
+        Component speakerComponent = null;
+        int nameWidth = 0;
+        if (hasSpeaker) {
+            Style nameStyle = Style.EMPTY.withColor(TextColor.fromRgb(message.getNameColor()));
+            Style textStyle = Style.EMPTY.withColor(TextColor.fromRgb(TEXT_COLOR));
+            speakerComponent = Component.literal("[" + rawSpeaker + "]")
+                    .withStyle(nameStyle)
+                    .append(Component.literal(":").withStyle(textStyle));
+            nameWidth = font.width(speakerComponent);
+        }
 
         int textContentWidth = 0;
         for (FormattedCharSequence line : fullLines) {
@@ -100,7 +111,7 @@ public final class NarrativeOverlay {
         int boxWidth =
                 iconAreaWidth
                 + nameWidth
-                + (speaker.isBlank() ? 0 : NAME_GAP)
+                + (hasSpeaker ? NAME_GAP : 0)
                 + textContentWidth
                 + PADDING * 2;
 
@@ -111,7 +122,7 @@ public final class NarrativeOverlay {
                 + PADDING
                 + iconAreaWidth
                 + nameWidth
-                + (speaker.isBlank() ? 0 : NAME_GAP);
+                + (hasSpeaker ? NAME_GAP : 0);
 
         // Реальная высота блока текста (высота строки майна 9px + интервалы)
         int textHeight = (fullLines.size() - 1) * LINE_HEIGHT + 9;
@@ -125,8 +136,9 @@ public final class NarrativeOverlay {
 
         // Вертикальное центрирование элементов внутри контентной зоны
         int iconTop = contentTop + (contentHeight - ICON_SIZE) / 2;
-        int nameY = contentTop + (contentHeight - 9) / 2;
         int textStartY = contentTop + (contentHeight - textHeight) / 2;
+        // Имя спикера — на первой (верхней) строке, без вертикального центрирования
+        int nameY = textStartY;
 
         // 1. Отрисовка подложки
         TextureBlitHelper.fillBox(poseStack, boxLeft, boxTop, boxLeft + boxWidth, boxBottom, BACKGROUND_COLOR);
@@ -138,10 +150,10 @@ public final class NarrativeOverlay {
             TextureBlitHelper.blitFull(poseStack, boxLeft + PADDING, iconTop, ICON_SIZE, ICON_SIZE);
         }
 
-        // 3. Отрисовка имени (по центру Y)
-        if (!speaker.isBlank()) {
+        // 3. Отрисовка имени ([Name]: — двоеточие в цвете текста, по первой строке)
+        if (hasSpeaker) {
             int nameX = boxLeft + PADDING + iconAreaWidth;
-            font.drawShadow(poseStack, speaker, nameX, nameY, message.getNameColor());
+            font.drawShadow(poseStack, speakerComponent, nameX, nameY, TEXT_COLOR);
         }
 
         // 4. Отрисовка текста (построчно от textStartY)
