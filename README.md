@@ -325,5 +325,5 @@ config/story_engine/
 
 ---
 
-*Story Engine · версия 1.0.0 · Forge 1.19.2 · автор Lorikowka*
+*Story Engine · версия 1.1.0 · Forge 1.19.2 · автор Lorikowka*
 
