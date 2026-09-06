@@ -9,6 +9,7 @@ import com.google.gson.JsonSerializationContext;
 import com.google.gson.JsonSerializer;
 
 import java.lang.reflect.Type;
+import java.util.Locale;
 
 /**
  * Базовый класс подзадачи квеста.
@@ -75,7 +76,7 @@ public class QuestTask {
             JsonObject jsonObject = json.getAsJsonObject();
             String type = jsonObject.has("type") ? jsonObject.get("type").getAsString() : "MANUAL";
             QuestTask task;
-            switch (type.toUpperCase()) {
+            switch (type.toUpperCase(Locale.ROOT)) {
                 case "LOCATION" -> task = context.deserialize(jsonObject, LocationQuestTask.class);
                 case "ITEM" -> task = context.deserialize(jsonObject, ItemQuestTask.class);
                 case "BLOCK_BREAK" -> task = context.deserialize(jsonObject, BlockBreakQuestTask.class);

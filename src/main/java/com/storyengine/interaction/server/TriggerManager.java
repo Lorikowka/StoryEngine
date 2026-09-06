@@ -85,7 +85,7 @@ public final class TriggerManager {
                 }
                 index(trigger);
                 loaded++;
-            } catch (IOException | JsonSyntaxException e) {
+            } catch (IOException | RuntimeException e) {
                 LOGGER.error("[StoryEngine] Ошибка загрузки триггера '{}'", file.getFileName(), e);
                 skipped++;
             }
@@ -94,6 +94,7 @@ public final class TriggerManager {
     }
 
     private void index(InteractionTrigger trigger) {
+        trigger.removeDuplicateActions();
         byId.put(trigger.getId(), trigger);
         Map<BlockPos, InteractionTrigger> inDim = byPos.computeIfAbsent(trigger.getDimensionRL(), k -> new LinkedHashMap<>());
         for (BlockPos pose : trigger.getBlockPoses()) {

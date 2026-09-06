@@ -29,11 +29,12 @@ import java.util.UUID;
  * чтобы не плодить отдельный SimpleChannel на каждый модуль. Создавать второй
  * канал с тем же именем "main" нельзя - это падает при загрузке мода.
  *
- * Пакеты (id на общем канале):
+ * Пакеты (id на общем канале; 10-11 заняты InteractionNetworking):
  *   6 - S2COpenDialoguePacket
  *   7 - S2CUpdateDialoguePacket
  *   8 - S2CCloseDialoguePacket
  *   9 - C2SSelectResponsePacket
+ *   12 - C2SStopDialoguePacket
  *
  * Доступность ответов (условие if) вычисляется НА СЕРВЕРЕ по игроку и
  * передаётся в пакете - клиенту не доверяем (см. спецификацию §8).
@@ -44,7 +45,7 @@ public final class DialogueNetworking {
     private static final int UPDATE_PACKET_ID = 7;
     private static final int CLOSE_PACKET_ID = 8;
     private static final int SELECT_PACKET_ID = 9;
-    private static final int STOP_PACKET_ID = 10;
+    private static final int STOP_PACKET_ID = 12;
 
     private DialogueNetworking() {
     }
@@ -164,7 +165,7 @@ public final class DialogueNetworking {
         String icon = buffer.readUtf();
         String portrait = buffer.readUtf();
         Component text = Component.Serializer.fromJson(buffer.readUtf());
-        int count = buffer.readInt();
+        int count = Math.min(buffer.readInt(), 128);
         List<ResponsePayload> responses = new ArrayList<>();
         for (int i = 0; i < count; i++) {
             Component rtext = Component.Serializer.fromJson(buffer.readUtf());
@@ -308,7 +309,7 @@ public final class DialogueNetworking {
     }
 
     // ============================================================
-    // C2SStopDialoguePacket (id 10)
+    // C2SStopDialoguePacket (id 12)
     // Клиент сообщает серверу, что экран диалога закрыт (ESC и т.п.),
     // чтобы серверная сессия не "висела" (см. DialogueScreen.onClose).
     // ============================================================

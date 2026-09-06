@@ -54,11 +54,12 @@ public class DialogueNode {
     }
 
     public List<DialogueResponse> getResponses() {
-        return responses;
+        // Gson может выставить поле в null (responses: null в JSON) - защищаем.
+        return responses != null ? responses : java.util.Collections.emptyList();
     }
 
     public void setResponses(List<DialogueResponse> responses) {
-        this.responses = responses;
+        this.responses = responses != null ? responses : new ArrayList<>();
     }
 
     /** Итоговый спикер узла: переопределение узла, иначе из _meta. */

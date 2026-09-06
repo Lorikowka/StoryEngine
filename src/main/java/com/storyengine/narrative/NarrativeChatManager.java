@@ -1,6 +1,11 @@
 package com.storyengine.narrative;
 
+import com.storyengine.StoryEngineMod;
 import com.storyengine.client.MenuCustomizationConfig;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -21,9 +26,13 @@ import java.util.Queue;
  * который отвлёкся или пропустил реплику, мог открыть NarrativeLogScreen
  * и прочитать её заново.
  */
+@Mod.EventBusSubscriber(modid = StoryEngineMod.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
 public final class NarrativeChatManager {
 
     private static final Queue<NarrativeMessage> QUEUE = new ArrayDeque<>();
+
+    /** Максимальное число сообщений в живой очереди (защита от спама/латей). */
+    private static final int MAX_QUEUE_SIZE = 32;
 
     /** Сколько тиков показывать один символ. 1 = 20 символов/сек. */
     private static final int TICKS_PER_CHAR = 1;
@@ -50,11 +59,17 @@ public final class NarrativeChatManager {
     }
 
     public static void enqueue(NarrativeMessage message) {
+        if (message == null) {
+            return;
+        }
+        if (QUEUE.size() >= MAX_QUEUE_SIZE) {
+            QUEUE.poll();
+        }
         QUEUE.add(message);
     }
 
     public static Queue<NarrativeMessage> getQueue() {
-        return QUEUE;
+        return new ArrayDeque<>(QUEUE);
     }
 
     /** Сообщение, которое сейчас нужно рисовать на экране, либо null. */
@@ -122,6 +137,16 @@ public final class NarrativeChatManager {
 
     private static int plainLength() {
         return current == null ? 0 : current.getText().getString().length();
+    }
+
+    /** Сброс всех состояний при выходе из мира: "чужие" сообщения не должны переживать игрока. */
+    @SubscribeEvent
+    public static void onClientLogout(ClientPlayerNetworkEvent.LoggingOut event) {
+        QUEUE.clear();
+        current = null;
+        elapsedTicks = 0;
+        holdTicksRemaining = -1;
+        HISTORY.clear();
     }
 }
 

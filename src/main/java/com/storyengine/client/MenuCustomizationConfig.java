@@ -73,6 +73,7 @@ public final class MenuCustomizationConfig {
     public static final ForgeConfigSpec.IntValue DIALOGUE_TEXT_LEFT_INDENT;
     public static final ForgeConfigSpec.IntValue DIALOGUE_TEXT_RIGHT_INDENT;
     public static final ForgeConfigSpec.IntValue DIALOGUE_RESPONSE_BOX_WIDTH;
+    public static final ForgeConfigSpec.IntValue DIALOGUE_RESPONSE_H_PADDING;
     public static final ForgeConfigSpec.IntValue DIALOGUE_RESPONSE_BOX_HEIGHT;
     public static final ForgeConfigSpec.IntValue DIALOGUE_RESPONSE_ROW_GAP;
     public static final ForgeConfigSpec.IntValue DIALOGUE_RESPONSE_X;
@@ -86,6 +87,9 @@ public final class MenuCustomizationConfig {
     public static final ForgeConfigSpec.IntValue DIALOGUE_RESPONSE_DISABLED_FILL;
     public static final ForgeConfigSpec.IntValue DIALOGUE_RESPONSE_DISABLED_BORDER;
     public static final ForgeConfigSpec.IntValue DIALOGUE_RESPONSE_DISABLED_TEXT;
+    public static final ForgeConfigSpec.IntValue DIALOGUE_RESPONSE_PRESSED_FILL;
+    public static final ForgeConfigSpec.IntValue DIALOGUE_RESPONSE_PRESSED_BORDER;
+    public static final ForgeConfigSpec.IntValue DIALOGUE_RESPONSE_PRESSED_TEXT;
 
     // === Interaction System (меню взаимодействия, левый нижний угол) ===
     public static final ForgeConfigSpec.BooleanValue INTERACTION_ENABLED;
@@ -176,23 +180,32 @@ public final class MenuCustomizationConfig {
         DIALOGUE_SPEAKER_ACCENT = color("speakerAccent", 0xFF38BDF8, "Верхняя акцентная полоса плашки имени.");
         DIALOGUE_SPEAKER_NAME_COLOR = color("speakerName", 0xFFE066, "Имя спикера (золотой).");
         DIALOGUE_TEXT_COLOR = color("text", 0xFFE8E8E8, "Текст реплики NPC.");
-        DIALOGUE_TEXT_LEFT_INDENT = BUILDER.comment("Отступ текста реплики слева в пикселях.")
-                .defineInRange("textLeftIndent", 32, 0, 200);
+        DIALOGUE_TEXT_LEFT_INDENT = BUILDER.comment(
+                        "Отступ текста реплики слева в пикселях (от внутренней границы панели).",
+                        "Комфортное значение 12-16 пикселей.")
+                .defineInRange("textLeftIndent", 14, 0, 200);
         DIALOGUE_TEXT_RIGHT_INDENT = BUILDER.comment("Отступ текста реплики справа в пикселях.")
                 .defineInRange("textRightIndent", 32, 0, 200);
         BUILDER.pop();
 
-        BUILDER.comment("Варианты ответа (блок слева-вверху).").push("responses");
-        DIALOGUE_RESPONSE_BOX_WIDTH = BUILDER.comment("Ширина плашки варианта ответа в пикселях.")
-                .defineInRange("boxWidth", 220, 40, 2000);
-        DIALOGUE_RESPONSE_BOX_HEIGHT = BUILDER.comment("Высота плашки варианта ответа в пикселях.")
-                .defineInRange("boxHeight", 20, 12, 200);
-        DIALOGUE_RESPONSE_ROW_GAP = BUILDER.comment("Промежуток между строками вариантов в пикселях.")
-                .defineInRange("rowGap", 6, 0, 100);
-        DIALOGUE_RESPONSE_X = BUILDER.comment("Позиция X блока вариантов (от края экрана).")
-                .defineInRange("posX", 24, 0, 2000);
-        DIALOGUE_RESPONSE_Y = BUILDER.comment("Позиция Y блока вариантов (от верха экрана).")
-                .defineInRange("posY", 24, 0, 2000);
+        BUILDER.comment("Варианты ответа (прижаты к верхнему левому углу).").push("responses");
+        DIALOGUE_RESPONSE_BOX_WIDTH = BUILDER.comment(
+                        "Минимальная ширина (min-width) кнопки варианта ответа в пикселях.",
+                        "Порог, чтобы короткие ответы ('Да', 'Нет') не превращались в обрубки;",
+                        "при длинном тексте кнопка автоматически расширяется под самый длинный ответ.")
+                .defineInRange("boxWidth", 120, 40, 2000);
+        DIALOGUE_RESPONSE_H_PADDING = BUILDER.comment(
+                        "Горизонтальный паддинг текста внутри кнопки в пикселях.",
+                        "Ширина кнопки = ширина текста + horizontalPadding * 2.")
+                .defineInRange("horizontalPadding", 16, 4, 80);
+        DIALOGUE_RESPONSE_BOX_HEIGHT = BUILDER.comment("Высота кнопки варианта ответа в пикселях.")
+                .defineInRange("boxHeight", 28, 12, 200);
+        DIALOGUE_RESPONSE_ROW_GAP = BUILDER.comment("Расстояние между кнопками вариантов по вертикали.")
+                .defineInRange("rowGap", 6, 4, 100);
+        DIALOGUE_RESPONSE_X = BUILDER.comment("Отступ блока вариантов от левого края экрана.")
+                .defineInRange("posX", 8, 0, 2000);
+        DIALOGUE_RESPONSE_Y = BUILDER.comment("Отступ первой кнопки варианта от верхнего края экрана.")
+                .defineInRange("posY", 8, 0, 2000);
 
         BUILDER.comment("Состояние покоя.").push("idle");
         DIALOGUE_RESPONSE_IDLE_FILL = color("fill", 0x8010141D, "Фон доступного варианта в покое.");
@@ -210,6 +223,12 @@ public final class MenuCustomizationConfig {
         DIALOGUE_RESPONSE_DISABLED_FILL = color("fill", 0x40000000, "Фон заблокированного варианта.");
         DIALOGUE_RESPONSE_DISABLED_BORDER = color("border", 0x30FFFFFF, "Рамка заблокированного варианта.");
         DIALOGUE_RESPONSE_DISABLED_TEXT = color("text", 0x777777, "Текст заблокированного варианта (серый).");
+        BUILDER.pop();
+
+        BUILDER.comment("Нажатое состояние (кнопка мыши удерживается на варианте).").push("pressed");
+        DIALOGUE_RESPONSE_PRESSED_FILL = color("fill", 0xFF10273F, "Фон нажатого варианта (тёмный синий).");
+        DIALOGUE_RESPONSE_PRESSED_BORDER = color("border", 0xFF9BE1FF, "Рамка нажатого варианта (светлый голубой).");
+        DIALOGUE_RESPONSE_PRESSED_TEXT = color("text", 0xFFFFFF, "Текст нажатого варианта.");
         BUILDER.pop();
 
         BUILDER.pop();
@@ -243,11 +262,13 @@ public final class MenuCustomizationConfig {
 
         BUILDER.comment("Геометрия панели в пикселях (см. спецификацию Interaction System §2).").push("layout");
         INTERACTION_PANEL_X = BUILDER.comment("Отступ панели от левого края экрана.")
-                .defineInRange("panelX", 24, 0, 2000);
-        INTERACTION_PANEL_BOTTOM_OFFSET = BUILDER.comment("Отступ панели от нижнего края (над уровнем здоровья/брони).")
-                .defineInRange("panelBottomOffset", 110, 0, 2000);
-        INTERACTION_PANEL_WIDTH = BUILDER.comment("Ширина панели меню.")
-                .defineInRange("panelWidth", 210, 40, 2000);
+                .defineInRange("panelX", 18, 0, 2000);
+        INTERACTION_PANEL_BOTTOM_OFFSET = BUILDER.comment("Отступ панели от нижнего края (чтобы не залезать в самый угол).")
+                .defineInRange("panelBottomOffset", 44, 0, 2000);
+        INTERACTION_PANEL_WIDTH = BUILDER.comment(
+                        "Минимальная ширина панели. 0 = авто: ширина плотно подстраивается под",
+                        "самую длинную строку + паддинг 8px слева и справа.")
+                .defineInRange("panelWidth", 0, 0, 2000);
         INTERACTION_ITEM_HEIGHT = BUILDER.comment("Высота одного пункта списка.")
                 .defineInRange("itemHeight", 18, 8, 200);
         INTERACTION_ITEM_GAP = BUILDER.comment("Расстояние между пунктами списка.")
@@ -261,9 +282,9 @@ public final class MenuCustomizationConfig {
         INTERACTION_HEADER_FILL = color("headerFill", 0xEA0A2A18, "Фон шапки панели (имя объекта).");
         INTERACTION_HEADER_TEXT = color("headerText", 0xA7F3D0, "Текст шапки (светло-мятный).");
         INTERACTION_ITEM_ACTIVE_FILL = color("itemActiveFill", 0xD00F3D24, "Фон активного пункта (насыщенный зелёный).");
-        INTERACTION_ITEM_ACTIVE_TEXT = color("itemActiveText", 0xFFFFFFFF, "Текст активного пункта (чистый белый).");
+        INTERACTION_ITEM_ACTIVE_TEXT = color("itemActiveText", 0xFFFFFF55, "Текст активного пункта (ярко-жёлтый #FFFF55).");
         INTERACTION_ITEM_IDLE_FILL = color("itemIdleFill", 0x70092315, "Фон неактивного пункта (приглушённый болотный).");
-        INTERACTION_ITEM_IDLE_TEXT = color("itemIdleText", 0xA7F3D0, "Текст неактивного пункта (светло-мятный).");
+        INTERACTION_ITEM_IDLE_TEXT = color("itemIdleText", 0xFF8D989F, "Текст неактивного пункта (приглушённый серый).");
         INTERACTION_ITEM_LOCKED_FILL = color("itemLockedFill", 0x5006140D, "Фон заблокированного пункта.");
         INTERACTION_ITEM_LOCKED_TEXT = color("itemLockedText", 0x556B5F, "Текст заблокированного пункта (приглушённый серый).");
         BUILDER.pop();
@@ -291,76 +312,86 @@ public final class MenuCustomizationConfig {
         return ENABLED.get();
     }
 
+    /**
+     * Значение кастомизации, пока её раздел включён; иначе встроенный дефолт.
+     * Это и есть обещанное флагами "false - рисовать встроенными значениями":
+     * раньше enabled=false скрывал только текстуры, но правки цветов всё равно
+     * применялись.
+     */
+    private static int gated(ForgeConfigSpec.IntValue value, boolean enabled) {
+        return enabled ? value.get() : value.getDefault();
+    }
+
     public static int windowFill() {
-        return WINDOW_FILL.get();
+        return gated(WINDOW_FILL, enabled());
     }
 
     public static int textPrimary() {
-        return TEXT_PRIMARY.get();
+        return gated(TEXT_PRIMARY, enabled());
     }
 
     public static int textLabel() {
-        return TEXT_LABEL.get();
+        return gated(TEXT_LABEL, enabled());
     }
 
     public static int textAuthor() {
-        return TEXT_AUTHOR.get();
+        return gated(TEXT_AUTHOR, enabled());
     }
 
     public static int textEmptyState() {
-        return TEXT_EMPTY_STATE.get();
+        return gated(TEXT_EMPTY_STATE, enabled());
     }
 
     public static int accent() {
-        return ACCENT.get();
+        return gated(ACCENT, enabled());
     }
 
     public static int tabHover() {
-        return TAB_HOVER.get();
+        return gated(TAB_HOVER, enabled());
     }
 
     public static int tabIdle() {
-        return TAB_IDLE.get();
+        return gated(TAB_IDLE, enabled());
     }
 
     public static int buttonHover() {
-        return BUTTON_HOVER.get();
+        return gated(BUTTON_HOVER, enabled());
     }
 
     public static int buttonIdle() {
-        return BUTTON_IDLE.get();
+        return gated(BUTTON_IDLE, enabled());
     }
 
     public static int taskNormal() {
-        return TASK_NORMAL.get();
+        return gated(TASK_NORMAL, enabled());
     }
 
     public static int taskDone() {
-        return TASK_DONE.get();
+        return gated(TASK_DONE, enabled());
     }
 
     public static int taskFailed() {
-        return TASK_FAILED.get();
+        return gated(TASK_FAILED, enabled());
     }
 
     public static int taskDescription() {
-        return TASK_DESCRIPTION.get();
+        return gated(TASK_DESCRIPTION, enabled());
     }
 
     public static int taskLocation() {
-        return TASK_LOCATION.get();
+        return gated(TASK_LOCATION, enabled());
     }
 
     public static int pillBackground() {
-        return PILL_BACKGROUND.get();
+        return gated(PILL_BACKGROUND, enabled());
     }
 
     public static int scrollbarTrack() {
-        return SCROLLBAR_TRACK.get();
+        return gated(SCROLLBAR_TRACK, enabled());
     }
 
     public static int scrollbarThumb() {
-        return SCROLLBAR_THUMB.get();
+        return gated(SCROLLBAR_THUMB, enabled());
     }
 
     public static double uiScaleOverride() {
@@ -376,12 +407,12 @@ public final class MenuCustomizationConfig {
     }
 
     public static int dialogueBarHeight() {
-        return DIALOGUE_BAR_HEIGHT.get();
+        return gated(DIALOGUE_BAR_HEIGHT, dialogueEnabled());
     }
 
     /** Символов в секунду (0 = мгновенно). */
     public static int dialogueTextSpeed() {
-        return DIALOGUE_TEXT_SPEED.get();
+        return gated(DIALOGUE_TEXT_SPEED, dialogueEnabled());
     }
 
     /** Символов в секунду для сюжетного чата (Narrative HUD). 0 = мгновенно. */
@@ -390,140 +421,156 @@ public final class MenuCustomizationConfig {
     }
 
     public static int dialogueBarFill() {
-        return DIALOGUE_BAR_FILL.get();
+        return gated(DIALOGUE_BAR_FILL, dialogueEnabled());
     }
 
     public static int dialogueDividerColor() {
-        return DIALOGUE_DIVIDER_COLOR.get();
+        return gated(DIALOGUE_DIVIDER_COLOR, dialogueEnabled());
     }
 
     public static int dialogueSpeakerPlateFill() {
-        return DIALOGUE_SPEAKER_PLATE_FILL.get();
+        return gated(DIALOGUE_SPEAKER_PLATE_FILL, dialogueEnabled());
     }
 
     public static int dialogueSpeakerPlateBorder() {
-        return DIALOGUE_SPEAKER_PLATE_BORDER.get();
+        return gated(DIALOGUE_SPEAKER_PLATE_BORDER, dialogueEnabled());
     }
 
     public static int dialogueSpeakerAccent() {
-        return DIALOGUE_SPEAKER_ACCENT.get();
+        return gated(DIALOGUE_SPEAKER_ACCENT, dialogueEnabled());
     }
 
     public static int dialogueSpeakerNameColor() {
-        return DIALOGUE_SPEAKER_NAME_COLOR.get();
+        return gated(DIALOGUE_SPEAKER_NAME_COLOR, dialogueEnabled());
     }
 
     public static int dialogueTextColor() {
-        return DIALOGUE_TEXT_COLOR.get();
+        return gated(DIALOGUE_TEXT_COLOR, dialogueEnabled());
     }
 
     public static int dialogueTextLeftIndent() {
-        return DIALOGUE_TEXT_LEFT_INDENT.get();
+        return gated(DIALOGUE_TEXT_LEFT_INDENT, dialogueEnabled());
     }
 
     public static int dialogueTextRightIndent() {
-        return DIALOGUE_TEXT_RIGHT_INDENT.get();
+        return gated(DIALOGUE_TEXT_RIGHT_INDENT, dialogueEnabled());
     }
 
     public static int dialogueResponseBoxWidth() {
-        return DIALOGUE_RESPONSE_BOX_WIDTH.get();
+        return gated(DIALOGUE_RESPONSE_BOX_WIDTH, dialogueEnabled());
+    }
+
+    public static int dialogueResponseHorizontalPadding() {
+        return gated(DIALOGUE_RESPONSE_H_PADDING, dialogueEnabled());
     }
 
     public static int dialogueResponseBoxHeight() {
-        return DIALOGUE_RESPONSE_BOX_HEIGHT.get();
+        return gated(DIALOGUE_RESPONSE_BOX_HEIGHT, dialogueEnabled());
     }
 
     public static int dialogueResponseRowGap() {
-        return DIALOGUE_RESPONSE_ROW_GAP.get();
+        return gated(DIALOGUE_RESPONSE_ROW_GAP, dialogueEnabled());
     }
 
     public static int dialogueResponseX() {
-        return DIALOGUE_RESPONSE_X.get();
+        return gated(DIALOGUE_RESPONSE_X, dialogueEnabled());
     }
 
     public static int dialogueResponseY() {
-        return DIALOGUE_RESPONSE_Y.get();
+        return gated(DIALOGUE_RESPONSE_Y, dialogueEnabled());
     }
 
     public static int dialogueResponseIdleFill() {
-        return DIALOGUE_RESPONSE_IDLE_FILL.get();
+        return gated(DIALOGUE_RESPONSE_IDLE_FILL, dialogueEnabled());
     }
 
     public static int dialogueResponseIdleBorder() {
-        return DIALOGUE_RESPONSE_IDLE_BORDER.get();
+        return gated(DIALOGUE_RESPONSE_IDLE_BORDER, dialogueEnabled());
     }
 
     public static int dialogueResponseIdleText() {
-        return DIALOGUE_RESPONSE_IDLE_TEXT.get();
+        return gated(DIALOGUE_RESPONSE_IDLE_TEXT, dialogueEnabled());
     }
 
     public static int dialogueResponseHoverFill() {
-        return DIALOGUE_RESPONSE_HOVER_FILL.get();
+        return gated(DIALOGUE_RESPONSE_HOVER_FILL, dialogueEnabled());
     }
 
     public static int dialogueResponseHoverBorder() {
-        return DIALOGUE_RESPONSE_HOVER_BORDER.get();
+        return gated(DIALOGUE_RESPONSE_HOVER_BORDER, dialogueEnabled());
     }
 
     public static int dialogueResponseHoverText() {
-        return DIALOGUE_RESPONSE_HOVER_TEXT.get();
+        return gated(DIALOGUE_RESPONSE_HOVER_TEXT, dialogueEnabled());
     }
 
     public static int dialogueResponseDisabledFill() {
-        return DIALOGUE_RESPONSE_DISABLED_FILL.get();
+        return gated(DIALOGUE_RESPONSE_DISABLED_FILL, dialogueEnabled());
     }
 
     public static int dialogueResponseDisabledBorder() {
-        return DIALOGUE_RESPONSE_DISABLED_BORDER.get();
+        return gated(DIALOGUE_RESPONSE_DISABLED_BORDER, dialogueEnabled());
     }
 
     public static int dialogueResponseDisabledText() {
-        return DIALOGUE_RESPONSE_DISABLED_TEXT.get();
+        return gated(DIALOGUE_RESPONSE_DISABLED_TEXT, dialogueEnabled());
+    }
+
+    public static int dialogueResponsePressedFill() {
+        return gated(DIALOGUE_RESPONSE_PRESSED_FILL, dialogueEnabled());
+    }
+
+    public static int dialogueResponsePressedBorder() {
+        return gated(DIALOGUE_RESPONSE_PRESSED_BORDER, dialogueEnabled());
+    }
+
+    public static int dialogueResponsePressedText() {
+        return gated(DIALOGUE_RESPONSE_PRESSED_TEXT, dialogueEnabled());
     }
 
     // === Окно истории сюжетного чата (NarrativeLogScreen) ===
     public static int logHeaderFill() {
-        return LOG_HEADER_FILL.get();
+        return gated(LOG_HEADER_FILL, enabled());
     }
 
     public static int logFooterFill() {
-        return LOG_FOOTER_FILL.get();
+        return gated(LOG_FOOTER_FILL, enabled());
     }
 
     public static int logAccentLine() {
-        return LOG_ACCENT_LINE.get();
+        return gated(LOG_ACCENT_LINE, enabled());
     }
 
     public static int logTitleColor() {
-        return LOG_TITLE_COLOR.get();
+        return gated(LOG_TITLE_COLOR, enabled());
     }
 
     public static int logHintColor() {
-        return LOG_HINT_COLOR.get();
+        return gated(LOG_HINT_COLOR, enabled());
     }
 
     public static int logFeedFill() {
-        return LOG_FEED_FILL.get();
+        return gated(LOG_FEED_FILL, enabled());
     }
 
     public static int logChatLineBackground() {
-        return LOG_CHAT_LINE_BG.get();
+        return gated(LOG_CHAT_LINE_BG, enabled());
     }
 
     public static int logBodyColor() {
-        return LOG_BODY_COLOR.get();
+        return gated(LOG_BODY_COLOR, enabled());
     }
 
     public static int logEmptyColor() {
-        return LOG_EMPTY_COLOR.get();
+        return gated(LOG_EMPTY_COLOR, enabled());
     }
 
     public static int logScrollbarTrack() {
-        return LOG_SCROLLBAR_TRACK.get();
+        return gated(LOG_SCROLLBAR_TRACK, enabled());
     }
 
     public static int logScrollbarThumb() {
-        return LOG_SCROLLBAR_THUMB.get();
+        return gated(LOG_SCROLLBAR_THUMB, enabled());
     }
 
     // === Interaction System (меню взаимодействия) ===
@@ -536,67 +583,67 @@ public final class MenuCustomizationConfig {
     }
 
     public static int interactionPanelX() {
-        return INTERACTION_PANEL_X.get();
+        return gated(INTERACTION_PANEL_X, interactionEnabled());
     }
 
     public static int interactionPanelBottomOffset() {
-        return INTERACTION_PANEL_BOTTOM_OFFSET.get();
+        return gated(INTERACTION_PANEL_BOTTOM_OFFSET, interactionEnabled());
     }
 
     public static int interactionPanelWidth() {
-        return INTERACTION_PANEL_WIDTH.get();
+        return gated(INTERACTION_PANEL_WIDTH, interactionEnabled());
     }
 
     public static int interactionItemHeight() {
-        return INTERACTION_ITEM_HEIGHT.get();
+        return gated(INTERACTION_ITEM_HEIGHT, interactionEnabled());
     }
 
     public static int interactionItemGap() {
-        return INTERACTION_ITEM_GAP.get();
+        return gated(INTERACTION_ITEM_GAP, interactionEnabled());
     }
 
     public static int interactionPanelFill() {
-        return INTERACTION_PANEL_FILL.get();
+        return gated(INTERACTION_PANEL_FILL, interactionEnabled());
     }
 
     public static int interactionPanelBorder() {
-        return INTERACTION_PANEL_BORDER.get();
+        return gated(INTERACTION_PANEL_BORDER, interactionEnabled());
     }
 
     public static int interactionFocus() {
-        return INTERACTION_FOCUS.get();
+        return gated(INTERACTION_FOCUS, interactionEnabled());
     }
 
     public static int interactionHeaderFill() {
-        return INTERACTION_HEADER_FILL.get();
+        return gated(INTERACTION_HEADER_FILL, interactionEnabled());
     }
 
     public static int interactionHeaderText() {
-        return INTERACTION_HEADER_TEXT.get();
+        return gated(INTERACTION_HEADER_TEXT, interactionEnabled());
     }
 
     public static int interactionItemActiveFill() {
-        return INTERACTION_ITEM_ACTIVE_FILL.get();
+        return gated(INTERACTION_ITEM_ACTIVE_FILL, interactionEnabled());
     }
 
     public static int interactionItemActiveText() {
-        return INTERACTION_ITEM_ACTIVE_TEXT.get();
+        return gated(INTERACTION_ITEM_ACTIVE_TEXT, interactionEnabled());
     }
 
     public static int interactionItemIdleFill() {
-        return INTERACTION_ITEM_IDLE_FILL.get();
+        return gated(INTERACTION_ITEM_IDLE_FILL, interactionEnabled());
     }
 
     public static int interactionItemIdleText() {
-        return INTERACTION_ITEM_IDLE_TEXT.get();
+        return gated(INTERACTION_ITEM_IDLE_TEXT, interactionEnabled());
     }
 
     public static int interactionItemLockedFill() {
-        return INTERACTION_ITEM_LOCKED_FILL.get();
+        return gated(INTERACTION_ITEM_LOCKED_FILL, interactionEnabled());
     }
 
     public static int interactionItemLockedText() {
-        return INTERACTION_ITEM_LOCKED_TEXT.get();
+        return gated(INTERACTION_ITEM_LOCKED_TEXT, interactionEnabled());
     }
 
     private MenuCustomizationConfig() {

@@ -16,13 +16,22 @@ import com.storyengine.narrative.NarrativeMessage;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.arguments.selector.EntitySelector;
 import net.minecraft.commands.arguments.selector.EntitySelectorParser;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.MenuProvider;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.registries.ForgeRegistries;
 import org.slf4j.Logger;
 
@@ -52,6 +61,16 @@ public final class TriggerActionExecutor {
     }
 
     public static void execute(ServerPlayer player, InteractionTrigger trigger, TriggerAction action) {
+        // Блочные действия выполняем через реальное взаимодействие с блоком сервера,
+        // чтобы звуки/двойные двери/компараторы работали как при правом клике.
+        if (action.getBlockAction() != null && !action.getBlockAction().isBlank()) {
+            applyBlockAction(player, trigger, action.getBlockAction());
+        }
+
+        if (action.isOpenStorage()) {
+            openStorage(player, trigger);
+        }
+
         if (action.getCommand() != null && !action.getCommand().isBlank()) {
             DialogueActionExecutor.runCommand(player, action.getCommand());
         }
@@ -75,6 +94,82 @@ public final class TriggerActionExecutor {
         if (action.getStorytell() != null) {
             storytell(player, action.getStorytell());
         }
+    }
+
+    /**
+     * Изменение состояния OPEN блока (двери/люки/калитки): "open"/"close"/"toggle".
+     *
+     * Используется тот же путь, что и у ванильного правого клика: BlockState.use()
+     * вызывается на сервере с верными координатами блока (BlockPos) и рукой
+     * MAIN_HAND, поэтому срабатывают звуки, синхронизация двойных дверей и
+     * компараторы. Для направления open/close блок открывается/закрывается только
+     * если его текущее состояние не совпадает с целевым.
+     */
+    private static void applyBlockAction(ServerPlayer player, InteractionTrigger trigger, String action) {
+        if (player.level == null || player.level.isClientSide) {
+            return;
+        }
+        ServerLevel level = (ServerLevel) player.level;
+        BlockPos pos = trigger.getBlockPos();
+        if (!level.isLoaded(pos)) {
+            return;
+        }
+        BlockState state = level.getBlockState(pos);
+        if (!state.hasProperty(BlockStateProperties.OPEN)) {
+            LOGGER.debug("[StoryEngine] Блок триггера '{}' не поддерживает open/close (нет свойства OPEN).",
+                    trigger.getId());
+            return;
+        }
+
+        boolean open = state.getValue(BlockStateProperties.OPEN);
+        boolean needOpen;
+        switch (action.trim().toLowerCase(java.util.Locale.ROOT)) {
+            case "open":
+                needOpen = true;
+                break;
+            case "close":
+                needOpen = false;
+                break;
+            case "toggle":
+            case "switch":
+                needOpen = !open;
+                break;
+            default:
+                LOGGER.warn("[StoryEngine] Неизвестный blockAction '{}' в триггере '{}'.",
+                        action, trigger.getId());
+                return;
+        }
+
+        if (open != needOpen) {
+            state.use(level, player, InteractionHand.MAIN_HAND,
+                    new BlockHitResult(Vec3.atCenterOf(pos), Direction.UP, pos, false));
+        }
+    }
+
+    /** Открыть контейнер на блоке триггера (сундук/бочка/печь и т.п.) через vanilla MenuProvider. */
+    private static void openStorage(ServerPlayer player, InteractionTrigger trigger) {
+        if (player.level == null || player.level.isClientSide) {
+            return;
+        }
+        ServerLevel level = (ServerLevel) player.level;
+        for (BlockPos pos : trigger.getBlockPoses()) {
+            if (!level.isLoaded(pos)) {
+                continue;
+            }
+            BlockState state = level.getBlockState(pos);
+            MenuProvider provider = state.getMenuProvider(level, pos);
+            if (provider == null && state.hasBlockEntity()) {
+                BlockEntity be = level.getBlockEntity(pos);
+                if (be instanceof MenuProvider) {
+                    provider = (MenuProvider) be;
+                }
+            }
+            if (provider != null) {
+                player.openMenu(provider);
+                return;
+            }
+        }
+        LOGGER.debug("[StoryEngine] На блоках триггера '{}' нет контейнера для открытия.", trigger.getId());
     }
 
     private static void openDialogue(ServerPlayer player, String dialogueId, String npcSelector) {
@@ -112,7 +207,11 @@ public final class TriggerActionExecutor {
     }
 
     private static void playSound(ServerPlayer player, String soundId) {
-        ResourceLocation loc = new ResourceLocation(soundId);
+        ResourceLocation loc = ResourceLocation.tryParse(soundId);
+        if (loc == null) {
+            LOGGER.warn("[StoryEngine] Некорректный sound id в триггере: '{}'", soundId);
+            return;
+        }
         SoundEvent event = ForgeRegistries.SOUND_EVENTS.getValue(loc);
         if (event == null) {
             LOGGER.warn("[StoryEngine] Неизвестный звук в триггере: '{}'", soundId);
@@ -126,7 +225,13 @@ public final class TriggerActionExecutor {
         if (message == null) {
             return;
         }
-        Component component = Component.Serializer.fromJson(message);
+        Component component;
+        try {
+            component = Component.Serializer.fromJson(message);
+        } catch (RuntimeException e) {
+            LOGGER.warn("[StoryEngine] Некорректный storytell JSON в триггере: {}", message);
+            return;
+        }
         if (component == null) {
             return;
         }

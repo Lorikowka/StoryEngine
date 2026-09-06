@@ -15,7 +15,7 @@ import net.minecraft.world.entity.player.Player;
  */
 public class TriggerAction {
 
-    /** Текст пункта меню (подсвечивается как [>] 1. ...). */
+    /** Текст пункта меню. */
     private String label = "";
 
     /** Условие доступности в строковом формате (см. Dialogue System §6). null/пусто = всегда доступно. */

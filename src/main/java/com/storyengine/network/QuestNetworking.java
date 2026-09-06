@@ -43,6 +43,10 @@ public final class QuestNetworking {
     private static final int TOAST_PACKET_ID = 4;
     private static final int MENU_RESET_PACKET_ID = 5;
 
+    /** Верхние границы для decode: защита от битых/зловредных пакетов (петли на миллионы итераций). */
+    private static final int MAX_QUESTS = 4096;
+    private static final int MAX_TASKS_PER_QUEST = 256;
+
     private QuestNetworking() {
     }
 
@@ -213,35 +217,35 @@ public final class QuestNetworking {
         }
 
         public static S2CSyncQuestDataPacket decode(FriendlyByteBuf buffer) {
-            int statusCount = buffer.readInt();
+            int statusCount = Math.min(buffer.readInt(), MAX_QUESTS);
             Map<String, QuestStatus> statuses = new LinkedHashMap<>();
             for (int i = 0; i < statusCount; i++) {
                 String questId = buffer.readUtf();
                 statuses.put(questId, QuestStatus.valueOf(buffer.readUtf()));
             }
-            int taskCount = buffer.readInt();
+            int taskCount = Math.min(buffer.readInt(), MAX_QUESTS);
             Map<String, List<String>> completedTasks = new LinkedHashMap<>();
             for (int i = 0; i < taskCount; i++) {
                 String questId = buffer.readUtf();
-                int taskSize = buffer.readInt();
+                int taskSize = Math.min(buffer.readInt(), MAX_TASKS_PER_QUEST);
                 List<String> tasks = new ArrayList<>();
                 for (int j = 0; j < taskSize; j++) {
                     tasks.add(buffer.readUtf());
                 }
                 completedTasks.put(questId, tasks);
             }
-            int progressCount = buffer.readInt();
+            int progressCount = Math.min(buffer.readInt(), MAX_QUESTS);
             Map<String, Map<String, Integer>> taskProgress = new LinkedHashMap<>();
             for (int i = 0; i < progressCount; i++) {
                 String questId = buffer.readUtf();
-                int taskProgressCount = buffer.readInt();
+                int taskProgressCount = Math.min(buffer.readInt(), MAX_TASKS_PER_QUEST);
                 Map<String, Integer> progress = new LinkedHashMap<>();
                 for (int j = 0; j < taskProgressCount; j++) {
                     progress.put(buffer.readUtf(), buffer.readInt());
                 }
                 taskProgress.put(questId, progress);
             }
-            int questCount = buffer.readInt();
+            int questCount = Math.min(buffer.readInt(), MAX_QUESTS);
             List<QuestData> questData = new ArrayList<>();
             for (int i = 0; i < questCount; i++) {
                 QuestData quest = new QuestData();
@@ -251,7 +255,7 @@ public final class QuestNetworking {
                 if (buffer.readBoolean()) {
                     quest.setAuthor(buffer.readUtf());
                 }
-                int taskSize = buffer.readInt();
+                int taskSize = Math.min(buffer.readInt(), MAX_TASKS_PER_QUEST);
                 List<QuestTask> tasks = new ArrayList<>();
                 for (int j = 0; j < taskSize; j++) {
                     tasks.add(decodeTask(buffer));

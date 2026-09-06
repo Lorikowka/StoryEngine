@@ -284,23 +284,36 @@ public class DialogueManager {
 
         session.setLastSelectTime(now);
 
+        // Анти-фарм: ответ без перехода (ни next, ни close, либо next == текущий
+        // узел, т.е. после выбора экран не меняется) исполняет свои действия
+        // (command/give/xp/quest...) ровно один раз за сессию. Иначе игрок мог бы
+        // кликать по одному и тому же ответу и без конца получать награды.
+        String nodeId = session.getCurrentNodeId();
+        String key = nodeId + ":" + responseIndex;
+        String next = response.getNext() == null ? "" : response.getNext().trim();
+        boolean staysHere = !response.shouldClose() && (next.isEmpty() || next.equals(nodeId));
+        if (staysHere && session.isResponseExecuted(key)) {
+            return new SelectResult(node, false);
+        }
+
         // Выполняем действия (command/quest/give/xp/flag/storytell).
         DialogueActionExecutor.execute(player, response);
+        session.markResponseExecuted(key);
 
         if (response.shouldClose()) {
             sessions.remove(player.getUUID());
             return new SelectResult(null, true);
         }
 
-        String next = response.getNext();
-        if (next != null && !next.isBlank()) {
-            DialogueNode nextNode = loadNode(session.getDialogueId(), next).orElse(null);
+        String nextNodeId = response.getNext();
+        if (nextNodeId != null && !nextNodeId.isBlank()) {
+            DialogueNode nextNode = loadNode(session.getDialogueId(), nextNodeId).orElse(null);
             if (nextNode == null) {
-                LOGGER.warn("[StoryEngine] Узел '{}' не найден в диалоге '{}'", next, session.getDialogueId());
+                LOGGER.warn("[StoryEngine] Узел '{}' не найден в диалоге '{}'", nextNodeId, session.getDialogueId());
                 sessions.remove(player.getUUID());
                 return new SelectResult(null, true);
             }
-            session.setCurrentNodeId(next);
+            session.setCurrentNodeId(nextNodeId);
             return new SelectResult(nextNode, false);
         }
 
@@ -311,6 +324,26 @@ public class DialogueManager {
     @SubscribeEvent
     public static void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
         if (event.getEntity() instanceof ServerPlayer serverPlayer) {
+            StoryEngineMod.DIALOGUE_MANAGER.stop(serverPlayer);
+        }
+    }
+
+    /** Закрываем сессию диалога при смерти игрока (серверная защита от "висящих" сессий). */
+    @SubscribeEvent
+    public static void onPlayerDeath(net.minecraftforge.event.entity.living.LivingDeathEvent event) {
+        if (event.getEntity() instanceof ServerPlayer serverPlayer
+                && StoryEngineMod.DIALOGUE_MANAGER.getSession(serverPlayer) != null) {
+            com.storyengine.network.dialogue.DialogueNetworking.sendClose(serverPlayer);
+            StoryEngineMod.DIALOGUE_MANAGER.stop(serverPlayer);
+        }
+    }
+
+    /** Смена измерения: целевой NPC может быть в другом измерении, сессию закрываем. */
+    @SubscribeEvent
+    public static void onPlayerChangedDimension(PlayerEvent.PlayerChangedDimensionEvent event) {
+        if (event.getEntity() instanceof ServerPlayer serverPlayer
+                && StoryEngineMod.DIALOGUE_MANAGER.getSession(serverPlayer) != null) {
+            com.storyengine.network.dialogue.DialogueNetworking.sendClose(serverPlayer);
             StoryEngineMod.DIALOGUE_MANAGER.stop(serverPlayer);
         }
     }

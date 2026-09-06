@@ -50,7 +50,10 @@ public final class QuestToastOverlay {
     }
 
     public static void add(String title, String text) {
-        ACTIVE.add(new Entry(title == null ? "" : title, text == null ? "" : text));
+        // startTime фиксируем в момент добавления, а не при первой отрисовке:
+        // иначе накопленные за время открытого экрана тосты выскакивали бы
+        // все разом со свежим startTime и моментально "протухали".
+        ACTIVE.add(new Entry(title == null ? "" : title, text == null ? "" : text, System.currentTimeMillis()));
     }
 
     @SubscribeEvent
@@ -60,9 +63,6 @@ public final class QuestToastOverlay {
             return;
         }
         if (ACTIVE.isEmpty()) {
-            return;
-        }
-        if (Minecraft.getInstance().screen != null) {
             return;
         }
 
@@ -78,9 +78,6 @@ public final class QuestToastOverlay {
         Iterator<Entry> it = ACTIVE.iterator();
         while (it.hasNext()) {
             Entry entry = it.next();
-            if (entry.startTime < 0) {
-                entry.startTime = now;
-            }
             long elapsed = now - entry.startTime;
             if (elapsed >= TOTAL_MS) {
                 it.remove();
@@ -146,11 +143,12 @@ public final class QuestToastOverlay {
     private static final class Entry {
         final String title;
         final String text;
-        long startTime = -1;
+        final long startTime;
 
-        Entry(String title, String text) {
+        Entry(String title, String text, long startTime) {
             this.title = title;
             this.text = text;
+            this.startTime = startTime;
         }
     }
 }

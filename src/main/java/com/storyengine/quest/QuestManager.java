@@ -16,7 +16,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -149,7 +148,10 @@ public class QuestManager {
     }
 
     public Collection<QuestData> getAllQuests() {
-        return Collections.unmodifiableCollection(questCache.values());
+        // Копия: внешний код (трекер, команды, синхронизация) итерирует список
+        // на разных потоках/событиях, а loadAll() считает одновременный
+        // clear()/put() в живой view - копия исключает ConcurrentModificationException.
+        return new ArrayList<>(questCache.values());
     }
 
     /**

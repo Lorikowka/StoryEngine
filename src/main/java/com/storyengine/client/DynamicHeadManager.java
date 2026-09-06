@@ -60,6 +60,14 @@ public final class DynamicHeadManager {
 
         String key = iconId.toLowerCase(Locale.ROOT);
 
+        // Валидация имени иконки: только буквы/цифры/_- (анти-pathх travers-als
+        // через "../": иначе resolve(key + ".png") читал бы файлы вне heads/).
+        if (!key.matches("[\\p{L}\\p{N}_-]+")) {
+            LOGGER.warn("[StoryEngine] Некорректное имя иконки '{}' (разрешены буквы, цифры, '_', '-'), использую заглушку.", iconId);
+            MISSING.add(key);
+            return defaultIcon();
+        }
+
         ResourceLocation cached = LOADED.get(key);
         if (cached != null) {
             return cached;

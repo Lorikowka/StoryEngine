@@ -3,6 +3,8 @@ package com.storyengine.dialogue;
 import net.minecraft.server.level.ServerPlayer;
 
 import javax.annotation.Nullable;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -15,6 +17,8 @@ public class DialogueSession {
     private final String dialogueId;
     private String currentNodeId;
     private long lastSelectTime = 0;
+    /** Ключи уже выполненных ответов "nodeId:index" - защита от повторного фарма действий. */
+    private final Set<String> executedResponses = new HashSet<>();
     @Nullable
     private UUID npcId;
 
@@ -57,5 +61,13 @@ public class DialogueSession {
 
     public void setLastSelectTime(long lastSelectTime) {
         this.lastSelectTime = lastSelectTime;
+    }
+
+    public boolean isResponseExecuted(String key) {
+        return executedResponses.contains(key);
+    }
+
+    public void markResponseExecuted(String key) {
+        executedResponses.add(key);
     }
 }

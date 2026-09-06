@@ -105,6 +105,8 @@ public class QuestProgressTracker {
 
             if (!hasIncompleteTrackableTask && quest.getTasks().stream().allMatch(task -> PlayerQuestDataHelper.isTaskCompleted(player, quest.getId(), task.getId()))) {
                 PlayerQuestDataHelper.setStatus(player, quest.getId(), QuestStatus.COMPLETED);
+                // Награды единообразно (предметы/опыт/команды), как при /quest complete.
+                quest.getRewards().grant(player);
                 QuestNetworking.sendQuestStatusMessage(player, "Квест '" + quest.getTitle() + "' выполнен");
             }
         }
@@ -216,14 +218,6 @@ public class QuestProgressTracker {
             }
         }
         for (ItemStack stack : player.getInventory().offhand) {
-            if (stack.isEmpty()) {
-                continue;
-            }
-            if (Registry.ITEM.getKey(stack.getItem()).equals(itemLocation)) {
-                count += stack.getCount();
-            }
-        }
-        for (ItemStack stack : player.getInventory().armor) {
             if (stack.isEmpty()) {
                 continue;
             }

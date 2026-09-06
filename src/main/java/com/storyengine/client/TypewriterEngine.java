@@ -47,6 +47,8 @@ public final class TypewriterEngine {
         if (charsPerSecond == 0) {
             return;
         }
-        this.elapsedTicks = (int) (fullLength / (double) charsPerSecond * TICKS_PER_SECOND);
+        // Округляем вверх, чтобы последний символ гарантированно показался
+        // (rounding down оставлял бы его мигающим на лишний тик).
+        this.elapsedTicks = (int) Math.ceil(fullLength / (double) charsPerSecond * TICKS_PER_SECOND);
     }
 }

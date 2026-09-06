@@ -65,11 +65,26 @@ public final class MenuAssetsManager {
         DEFAULTS.put("default_head", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/default_head.png"));
         // Панель меню интерактивного взаимодействия (левый нижний угол).
         DEFAULTS.put("interaction_menu", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/interaction_menu.png"));
+        // Текстурная карта диалогового окна (9-patch фреймы, см. DIALOGUE_REGIONS).
+        DEFAULTS.put("dialogue_box", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/dialogue_box.png"));
     }
 
     /** Размеры атласа gui_atlas.png (фиксированная раскладка, см. ATLAS_REGIONS). */
     public static final int ATLAS_W = 360;
     public static final int ATLAS_H = 124;
+
+    /**
+     * Фреймы текстурной карты диалогового окна dialogue_box.png: id -> {u, v, w, h}.
+     * Карта 160x32, каждый фрейм 32x32 (9-patch: рамка 6px, скруглённые углы).
+     */
+    private static final Map<String, int[]> DIALOGUE_REGIONS = new HashMap<>();
+    static {
+        DIALOGUE_REGIONS.put("bar", new int[]{0, 0, 32, 32});
+        DIALOGUE_REGIONS.put("plate", new int[]{32, 0, 32, 32});
+        DIALOGUE_REGIONS.put("button_idle", new int[]{64, 0, 32, 32});
+        DIALOGUE_REGIONS.put("button_hover", new int[]{96, 0, 32, 32});
+        DIALOGUE_REGIONS.put("button_pressed", new int[]{128, 0, 32, 32});
+    }
 
     /**
      * Фиксированная раскладка атласа: id -> {u, v, w, h} в пикселях gui_atlas.png.
@@ -112,6 +127,11 @@ public final class MenuAssetsManager {
     /** Возвращает регион {u, v, w, h} в пикселях атласа для атласного ассета, либо null. */
     public static int[] getRegion(String id) {
         return ATLAS_REGIONS.get(id);
+    }
+
+    /** Возвращает фрейм {u, v, w, h} диалоговой текстурной карты (9-patch), либо null. */
+    public static int[] getDialogueRegion(String id) {
+        return DIALOGUE_REGIONS.get(id);
     }
 
     /**

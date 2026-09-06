@@ -46,6 +46,9 @@ public final class InteractionNetworking {
     /** Cooldown на выполнение действия одним игроком (мс). */
     private static final long EXECUTE_COOLDOWN_MS = 250;
 
+    /** Верхняя граница числа триггеров в синхронизационном пакете (защита decode). */
+    private static final int MAX_TRIGGERS = 2048;
+
     private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
 
     /** Последнее время выполнения действия по игроку (защита от флуда). */
@@ -93,7 +96,7 @@ public final class InteractionNetworking {
         }
 
         public static S2CSyncTriggersPacket decode(FriendlyByteBuf buffer) {
-            int count = buffer.readInt();
+            int count = Math.min(buffer.readInt(), MAX_TRIGGERS);
             List<InteractionTrigger> list = new ArrayList<>(count);
             for (int i = 0; i < count; i++) {
                 String json = buffer.readUtf();

@@ -99,7 +99,12 @@ public final class DialogueActionExecutor {
         String questId = parts[0];
         String taskId = parts[1];
 
-        if (PlayerQuestDataHelper.getStatus(player, questId) != QuestStatus.ACTIVE) {
+        QuestStatus status = PlayerQuestDataHelper.getStatus(player, questId);
+        // Уже завершённый квест не ре-активируем и не награждаем повторно (анти-дюп).
+        if (status == QuestStatus.COMPLETED) {
+            return;
+        }
+        if (status != QuestStatus.ACTIVE) {
             PlayerQuestDataHelper.setStatus(player, questId, QuestStatus.ACTIVE);
         }
         PlayerQuestDataHelper.completeTask(player, questId, taskId);
@@ -112,6 +117,8 @@ public final class DialogueActionExecutor {
             if (done) {
                 PlayerQuestDataHelper.setStatus(player, questId, QuestStatus.COMPLETED);
                 QuestNetworking.sendQuestStatusMessage(player, "Квест '" + questOpt.get().getTitle() + "' выполнен");
+                // Награды единообразно (предметы/опыт/команды), как при /quest complete.
+                questOpt.get().getRewards().grant(player);
             }
         }
     }
@@ -174,7 +181,12 @@ public final class DialogueActionExecutor {
             return null;
         }
 
-        Item item = Registry.ITEM.get(new ResourceLocation(itemId));
+        ResourceLocation itemLoc = ResourceLocation.tryParse(itemId);
+        if (itemLoc == null) {
+            LOGGER.warn("[StoryEngine] Некорректный item id в give: '{}'", itemId);
+            return null;
+        }
+        Item item = Registry.ITEM.get(itemLoc);
         if (item == null || item == net.minecraft.world.item.Items.AIR) {
             LOGGER.warn("[StoryEngine] Неизвестный предмет в give: '{}'", itemId);
             return null;
@@ -206,7 +218,13 @@ public final class DialogueActionExecutor {
         if (data.getMessage() == null) {
             return;
         }
-        Component message = Component.Serializer.fromJson(data.getMessage());
+        Component message;
+        try {
+            message = Component.Serializer.fromJson(data.getMessage());
+        } catch (RuntimeException e) {
+            LOGGER.warn("[StoryEngine] Некорректный storytell JSON: {}", data.getMessage());
+            return;
+        }
         if (message == null) {
             return;
         }

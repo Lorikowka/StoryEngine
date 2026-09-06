@@ -19,7 +19,11 @@ public class ItemCondition extends DialogueCondition {
 
     @Override
     public boolean evaluate(Player player) {
-        Item item = Registry.ITEM.get(new ResourceLocation(itemId));
+        ResourceLocation itemLoc = ResourceLocation.tryParse(itemId);
+        if (itemLoc == null) {
+            return false;
+        }
+        Item item = Registry.ITEM.get(itemLoc);
         if (item == null || item == net.minecraft.world.item.Items.AIR) {
             return false;
         }

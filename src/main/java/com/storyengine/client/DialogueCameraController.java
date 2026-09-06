@@ -60,29 +60,21 @@ public final class DialogueCameraController {
         double dy = targetPosition.y - camPos.y;
         double dz = targetPosition.z - camPos.z;
 
-        // Направление от камеры к NPC (в радианах, конвенция Minecraft).
-        float targetYaw = (float) Math.atan2(-dx, -dz);
-        float targetPitch = (float) Math.atan2(dy, Math.sqrt(dx * dx + dz * dz));
+        // Направление от камеры к NPC. Примерное соглашение: у Minecraft
+        // yaw/pitch в ГРАДУСАХ, Math.atan2 считает в радианах - приводим.
+        float targetYaw = (float) Math.toDegrees(Math.atan2(-dx, -dz));
+        float targetPitch = (float) Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
 
         float currentYaw = event.getYaw();
         float currentPitch = event.getPitch();
 
-        // Кратчайший путь по yaw, чтобы не было лишних оборотов через границу.
-        float deltaYaw = wrapAngleRad(targetYaw - currentYaw);
+        // Кратчайший путь по yaw (в градусах), чтобы не было лишних оборотов
+        // через границу -/+180.
+        float deltaYaw = Mth.wrapDegrees(targetYaw - currentYaw);
         float blendedYaw = currentYaw + deltaYaw * blend;
         float blendedPitch = currentPitch + (targetPitch - currentPitch) * blend;
 
         event.setYaw(blendedYaw);
         event.setPitch(blendedPitch);
-    }
-
-    /** Нормализует угол в радианах в диапазон (-pi, pi]. */
-    private static float wrapAngleRad(float angle) {
-        float pi = (float) Math.PI;
-        float a = (angle + pi) % (2.0F * pi);
-        if (a < 0.0F) {
-            a += 2.0F * pi;
-        }
-        return a - pi;
     }
 }

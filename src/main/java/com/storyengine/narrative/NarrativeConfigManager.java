@@ -2,6 +2,7 @@ package com.storyengine.narrative;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonSyntaxException;
 import com.mojang.logging.LogUtils;
 import net.minecraftforge.fml.loading.FMLPaths;
 import org.slf4j.Logger;
@@ -47,8 +48,8 @@ public final class NarrativeConfigManager {
         if (Files.isRegularFile(file)) {
             try (Reader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
                 loaded = GSON.fromJson(reader, NarrativeConfig.class);
-            } catch (IOException e) {
-                LOGGER.error("[StoryEngine] Не удалось прочитать narrative_config.json", e);
+            } catch (IOException | JsonSyntaxException e) {
+                LOGGER.error("[StoryEngine] Не удалось прочитать narrative_config.json (использую настройки по умолчанию)", e);
             }
         }
 

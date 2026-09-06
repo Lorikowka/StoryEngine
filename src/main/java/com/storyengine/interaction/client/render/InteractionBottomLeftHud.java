@@ -26,8 +26,12 @@ import net.minecraftforge.fml.common.Mod;
  *
  * Панель либо сплошная заливка (цвета из конфига), либо поверх кастомной
  * текстуры config/story_engine/menu/interaction_menu.png (переключается
- * interactionCustomization.useTexture). Шапка = имя объекта, ниже — пункты
- * действий с индикаторами [>]/[ ]/[x] и подсветкой выбранного (selectedIndex).
+ * interactionCustomization.useTexture). Внутри — только список доступных
+ * вариантов действий. Подсветка выбранного пункта анимированная: скользит
+ * между пунктами с гауссовым затуханием (плавный переход, без резких
+ * переключений), текст и заливка плавно интерполируются между idle-серым и
+ * активным жёлтым #FFFF55 (см. конфиг). Шапка/заголовок не рисуются.
+ * Ширина подстраивается под самую длинную строку (+ паддинг 8px).
  */
 @Mod.EventBusSubscriber(modid = StoryEngineMod.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
 public final class InteractionBottomLeftHud {
@@ -35,6 +39,11 @@ public final class InteractionBottomLeftHud {
     /** Встроенный размер дефолтной текстуры (см. interaction_menu.png). */
     private static final int TEX_W = 210;
     private static final int TEX_H = 160;
+
+    /** Анимация подсветки выбранного пункта: скользящий центр + время последнего кадра. */
+    private static float animCenter = Float.NaN;
+    private static boolean animValid;
+    private static long lastFrameNanos = -1;
 
     private InteractionBottomLeftHud() {
     }
@@ -62,16 +71,26 @@ public final class InteractionBottomLeftHud {
         Minecraft mc = Minecraft.getInstance();
         Font font = mc.font;
 
+        int pad = 8;
         int x = MenuCustomizationConfig.interactionPanelX();
-        int panelW = MenuCustomizationConfig.interactionPanelWidth();
         int itemH = MenuCustomizationConfig.interactionItemHeight();
         int gap = MenuCustomizationConfig.interactionItemGap();
-        int headerH = itemH;
 
         var actions = trigger.getActions();
         int count = actions.size();
-        int itemsH = count > 0 ? count * itemH + (count - 1) * gap : 0;
-        int totalH = headerH + itemsH;
+        int totalH = count > 0 ? count * itemH + (count - 1) * gap : 0;
+
+        // Ширина плотно под самую длинную строку действия + паддинг. panelWidth в
+        // конфиге задаёт минимальную ширину; 0 = авто (по тексту). Заголовок меню
+        // не рисуется: в панели остаётся только список доступных вариантов.
+        int maxTextW = 0;
+        for (int i = 0; i < count; i++) {
+            TriggerAction a = actions.get(i);
+            String label = a != null && a.getLabel() != null ? a.getLabel() : "";
+            maxTextW = Math.max(maxTextW, font.width(label));
+        }
+        int configuredW = MenuCustomizationConfig.interactionPanelWidth();
+        int panelW = Math.max(configuredW > 0 ? configuredW : 0, maxTextW + pad * 2);
 
         int screenH = window.getGuiScaledHeight();
         int panelTop = screenH - MenuCustomizationConfig.interactionPanelBottomOffset() - totalH;
@@ -96,54 +115,88 @@ public final class InteractionBottomLeftHud {
         TextureBlitHelper.fillBox(pose, x, panelTop, x + 1, panelTop + totalH, border);
         TextureBlitHelper.fillBox(pose, x + panelW - 1, panelTop, x + panelW, panelTop + totalH, border);
 
-        // Шапка (имя объекта).
-        if (!useTex) {
-            TextureBlitHelper.fillBox(pose, x, panelTop, x + panelW, panelTop + headerH,
-                    MenuCustomizationConfig.interactionHeaderFill());
-        }
-        String headerText = "[F] " + (trigger.getName() == null ? "" : trigger.getName());
-        font.draw(pose, Component.literal(headerText), x + 6,
-                panelTop + (headerH - font.lineHeight) / 2,
-                MenuCustomizationConfig.interactionHeaderText());
-
-        // Пункты действий.
+        // Пункты действий: подсветка «скользит» от старого к новому выбранному
+        // пункту с плавным гауссовым затуханием (без резкого переключения).
         int sel = InteractionClientState.getSelectedIndex();
+
+        long nowNanos = System.nanoTime();
+        if (lastFrameNanos < 0) {
+            lastFrameNanos = nowNanos;
+        }
+        float rawDelta = (nowNanos - lastFrameNanos) / 1_000_000_000f;
+        lastFrameNanos = nowNanos;
+        float delta = Math.min(Math.max(rawDelta, 0f), 0.05f);
+
+        float target = sel >= 0 ? panelTop + sel * (itemH + gap) + itemH / 2f : Float.NaN;
+        if (Float.isNaN(target)) {
+            animValid = false;
+        } else if (!animValid || rawDelta > 0.25f) {
+            // Первый кадр после паузы/возврата/смены триггера — мгновенный сброс.
+            animCenter = target;
+            animValid = true;
+        } else if (delta > 0f) {
+            animCenter += (target - animCenter) * (1f - (float) Math.exp(-14.0 * delta));
+        }
+
         for (int i = 0; i < count; i++) {
-            int iy = panelTop + headerH + i * (itemH + gap);
+            int iy = panelTop + i * (itemH + gap);
             TriggerAction a = actions.get(i);
             boolean available = player != null && a.isAvailable(player);
-            boolean active = i == sel;
 
-            int fill;
-            int textColor;
             if (!available) {
-                fill = MenuCustomizationConfig.interactionItemLockedFill();
-                textColor = MenuCustomizationConfig.interactionItemLockedText();
-            } else if (active) {
-                fill = MenuCustomizationConfig.interactionItemActiveFill();
-                textColor = MenuCustomizationConfig.interactionItemActiveText();
-            } else {
-                fill = MenuCustomizationConfig.interactionItemIdleFill();
-                textColor = MenuCustomizationConfig.interactionItemIdleText();
+                // Заблокированный пункт — статичный приглушённый вид.
+                TextureBlitHelper.fillBox(pose, x, iy, x + panelW, iy + itemH,
+                        MenuCustomizationConfig.interactionItemLockedFill());
+                String lockedLabel = a.getLabel() != null ? a.getLabel() : "";
+                font.draw(pose, Component.literal(lockedLabel), x + pad,
+                        iy + (itemH - font.lineHeight) / 2,
+                        MenuCustomizationConfig.interactionItemLockedText());
+                continue;
             }
 
-            if (!useTex) {
+            // Степень подсветки пункта: гауссово падение от «скользящего» центра.
+            float f = animValid ? glowStrength(iy + itemH / 2f, itemH + gap) : 0f;
+            // Текстура сама несёт idle-вид строки; в сплошном режиме idle-заливка нужна.
+            if (!useTex || f >= 0.02f) {
+                int fill = lerpColor(MenuCustomizationConfig.interactionItemIdleFill(),
+                        MenuCustomizationConfig.interactionItemActiveFill(), f);
                 TextureBlitHelper.fillBox(pose, x, iy, x + panelW, iy + itemH, fill);
             }
-            // Акцентная полоса слева у активного пункта.
-            if (active) {
+            // Акцентная полоса слева двигается вместе с подсветкой, затухая по краям.
+            if (f >= 0.02f) {
+                int focus = MenuCustomizationConfig.interactionFocus();
+                int focusAlpha = Math.round(((focus >>> 24) & 0xFF) * Math.min(1f, f * 1.5f));
                 TextureBlitHelper.fillBox(pose, x, iy, x + 2, iy + itemH,
-                        MenuCustomizationConfig.interactionFocus());
+                        (focusAlpha << 24) | (focus & 0x00FFFFFF));
             }
 
-            String indicator = !available ? "[x] " : (active ? "[>] " : "[ ] ");
-            Component label = Component.literal(indicator).append(a.getLabel() == null ? "" : a.getLabel());
-            font.draw(pose, label, x + 6, iy + (itemH - font.lineHeight) / 2, textColor);
+            int textColor = lerpColor(MenuCustomizationConfig.interactionItemIdleText(),
+                    MenuCustomizationConfig.interactionItemActiveText(), f);
+            String label = a.getLabel() != null ? a.getLabel() : "";
+            font.draw(pose, Component.literal(label), x + pad, iy + (itemH - font.lineHeight) / 2, textColor);
         }
+    }
 
-        // Подсказка управления.
-        String hint = "Колесо — выбор · [F] — действие";
-        font.draw(pose, Component.literal(hint), x,
-                panelTop + totalH + 2, MenuCustomizationConfig.interactionItemIdleText());
+    /** Гауссова «сила подсветки» в точке centerY относительно скользящего центра. */
+    private static float glowStrength(float centerY, float spread) {
+        float d = Math.abs(animCenter - centerY);
+        float sigma = Math.max(1f, spread * 0.45f);
+        return (float) Math.exp(-(d * d) / (2f * sigma * sigma));
+    }
+
+    /** Линейная интерполяция цвета ARGB (включая альфа-канал). */
+    private static int lerpColor(int from, int to, float t) {
+        if (t <= 0f) {
+            return from;
+        }
+        if (t >= 1f) {
+            return to;
+        }
+        int fa = (from >>> 24) & 0xFF, fr = (from >>> 16) & 0xFF, fg = (from >>> 8) & 0xFF, fb = from & 0xFF;
+        int ta = (to >>> 24) & 0xFF, tr = (to >>> 16) & 0xFF, tg = (to >>> 8) & 0xFF, tb = to & 0xFF;
+        return (Math.round(fa + (ta - fa) * t) << 24)
+                | (Math.round(fr + (tr - fr) * t) << 16)
+                | (Math.round(fg + (tg - fg) * t) << 8)
+                | Math.round(fb + (tb - fb) * t);
     }
 }

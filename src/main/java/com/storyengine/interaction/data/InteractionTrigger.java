@@ -5,7 +5,9 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Точка интерактивного взаимодействия (блок/объект в мире).
@@ -145,6 +147,54 @@ public class InteractionTrigger {
         this.actions = actions;
     }
 
+    /**
+     * Убирает из списка точные дубли действий (одинаковые label и все эффекты),
+     * чтобы в меню не появлялось дублирующихся строк, а индексы выбора на клиенте
+     * и сервере совпадали. Вызывается при индексации триггера (см. TriggerManager)
+     * и при сетевой синхронизации (см. InteractionClientState).
+     */
+    public void removeDuplicateActions() {
+        if (actions == null) {
+            actions = new ArrayList<>();
+            return;
+        }
+        Set<String> seen = new HashSet<>();
+        List<TriggerAction> unique = new ArrayList<>(actions.size());
+        for (TriggerAction a : actions) {
+            if (a == null) {
+                continue;
+            }
+            if (seen.add(actionKey(a))) {
+                unique.add(a);
+            }
+        }
+        if (unique.size() != actions.size()) {
+            actions = unique;
+        }
+    }
+
+    private static String actionKey(TriggerAction a) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(a.getLabel()).append('\u0001');
+        sb.append(a.getCondition()).append('\u0001');
+        sb.append(a.getDialogue()).append('\u0001');
+        sb.append(a.getNpc()).append('\u0001');
+        sb.append(a.getCommand()).append('\u0001');
+        sb.append(a.getCompleteTask()).append('\u0001');
+        sb.append(a.getSound()).append('\u0001');
+        sb.append(a.getSetFlag()).append('\u0001');
+        sb.append(a.getBlockAction()).append('\u0001');
+        sb.append(a.isOpenStorage()).append('\u0001');
+        TriggerAction.Storytell st = a.getStorytell();
+        if (st != null) {
+            sb.append(st.getSpeaker()).append('\u0002');
+            if (st.getMessage() != null) {
+                sb.append(st.getMessage());
+            }
+        }
+        return sb.toString();
+    }
+
     /** BlockPos из массива pos (защита от неполного массива). */
     public BlockPos getBlockPos() {
         int[] p = position != null ? position : new int[3];
@@ -154,10 +204,11 @@ public class InteractionTrigger {
         return new BlockPos(x, y, z);
     }
 
-    /** ResourceLocation измерения (безопасно к null). */
+    /** ResourceLocation измерения (защита от кривого значения в конфиге). */
     public ResourceLocation getDimensionRL() {
         String d = dimension != null && !dimension.isBlank() ? dimension : "minecraft:overworld";
-        return new ResourceLocation(d);
+        ResourceLocation loc = ResourceLocation.tryParse(d);
+        return loc != null ? loc : new ResourceLocation("minecraft:overworld");
     }
 
     /** Цвет контура как int (0xAARRGGBB). При ошибке парсинга — дефолт неоново-зелёный. */

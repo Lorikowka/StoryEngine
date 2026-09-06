@@ -24,7 +24,6 @@ import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.commands.arguments.ResourceLocationArgument;
 import net.minecraft.network.chat.Component;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.server.ServerLifecycleHooks;
 
@@ -335,26 +334,20 @@ public final class QuestCommand {
         }
 
         QuestData quest = questOpt.get();
+        if (PlayerQuestDataHelper.getStatus(player, questId) == QuestStatus.COMPLETED) {
+            return CommandFeedback.fail(source, "Квест '" + questId + "' уже завершён (COMPLETED) у игрока " + player.getName().getString() + ".");
+        }
+
         PlayerQuestDataHelper.setStatus(player, questId, QuestStatus.COMPLETED);
         com.storyengine.network.QuestNetworking.sendQuestStatusMessage(player, "Квест '" + quest.getTitle() + "' выполнен");
         com.storyengine.network.QuestNetworking.syncToPlayer(player);
 
-        // Выполняем команды награды от имени сервера, в контексте игрока
-        // (чтобы селекторы вроде @p корректно указывали на этого игрока).
-        CommandSourceStack rewardSource = source.getServer().createCommandSourceStack()
-                .withEntity(player)
-                .withPosition(player.position())
-                .withLevel((ServerLevel) player.getLevel())
-                .withPermission(4)
-                .withSuppressedOutput();
-
-        for (String command : quest.getRewards().getCommands()) {
-            source.getServer().getCommands().performPrefixedCommand(rewardSource, command);
-        }
+        // Награды выдаём ровно один раз через единую точку: предметы (в инвентарь
+        // или выпадение), опыт и команды от имени сервера в контексте игрока.
+        quest.getRewards().grant(player);
 
         return CommandFeedback.success(source,
-                "Квест '" + questId + "' завершён (COMPLETED) у игрока " + player.getName().getString()
-                        + ". Выполнено команд награды: " + quest.getRewards().getCommands().size());
+                "Квест '" + questId + "' завершён (COMPLETED) у игрока " + player.getName().getString() + ". Награды выданы.");
     }
 
     // ----------------------------------------------------------------
@@ -416,6 +409,7 @@ public final class QuestCommand {
         if (allDone) {
             PlayerQuestDataHelper.setStatus(player, questId, QuestStatus.COMPLETED);
             com.storyengine.network.QuestNetworking.sendQuestStatusMessage(player, "Квест '" + quest.getTitle() + "' выполнен");
+            quest.getRewards().grant(player);
         }
 
         return CommandFeedback.success(source,
