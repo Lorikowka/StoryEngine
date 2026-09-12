@@ -2,5 +2,14 @@
   "key.categories.story_engine": "Story Engine",
   "key.story_engine.open_quest_menu": "Открыть меню квестов",
   "key.story_engine.open_narrative_log": "Открыть историю сюжетного чата",
-  "key.story_engine.interact": "Взаимодействие (F)"
+  "key.story_engine.interact": "Взаимодействие (F)",
+  "story_engine.action.open": "Открыть",
+  "story_engine.action.use": "Использовать",
+  "story_engine.action.press": "Нажать",
+  "story_engine.action.toggle": "Переключить",
+  "story_engine.action.sleep": "Спать",
+  "story_engine.action.ring": "Позвонить",
+  "story_engine.action.take": "Подобрать",
+  "story_engine.action.trade": "Торговать",
+  "story_engine.action.sit": "Сесть"
 }

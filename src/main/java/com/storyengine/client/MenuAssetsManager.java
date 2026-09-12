@@ -19,7 +19,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -63,8 +62,8 @@ public final class MenuAssetsManager {
         DEFAULTS.put("quest_widgets", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/quest_widgets.png"));
         // Иконка по умолчанию для голов/портретов NPC - индивидуальная (вне атласа).
         DEFAULTS.put("default_head", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/default_head.png"));
-        // Панель меню интерактивного взаимодействия (левый нижний угол).
-        DEFAULTS.put("interaction_menu", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/interaction_menu.png"));
+        // Плашка HUD «[F] Действие» (general-подсказки взаимодействия, левый нижний угол).
+        DEFAULTS.put("interaction_hint", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/interaction_hint.png"));
         // Текстурная карта диалогового окна (9-patch фреймы, см. DIALOGUE_REGIONS).
         DEFAULTS.put("dialogue_box", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/dialogue_box.png"));
     }
@@ -101,17 +100,11 @@ public final class MenuAssetsManager {
         ATLAS_REGIONS.put("quest_toast", new int[]{0, 88, 220, 36});
     }
 
-    /** Встроенные исходники для сборки дефолтного атласа (читаются из ресурсов мода). */
-    private static final Map<String, ResourceLocation> ATLAS_SOURCES = new LinkedHashMap<>();
-    static {
-        ATLAS_SOURCES.put("status_active", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/status_active.png"));
-        ATLAS_SOURCES.put("status_completed", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/status_completed.png"));
-        ATLAS_SOURCES.put("status_failed", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/status_failed.png"));
-        ATLAS_SOURCES.put("quest_icon", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/quest_icon.png"));
-        ATLAS_SOURCES.put("narrative_header", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/narrative_header.png"));
-        ATLAS_SOURCES.put("narrative_footer", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/narrative_footer.png"));
-        ATLAS_SOURCES.put("quest_toast", new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/quest_toast.png"));
-    }
+    /** Атласные ассеты (регионы внутри gui_atlas.png, см. ATLAS_REGIONS). */
+    private static final Set<String> ATLAS_IDS = Set.of(
+            "status_active", "status_completed", "status_failed",
+            "quest_icon", "narrative_header", "narrative_footer", "quest_toast"
+    );
 
     private static final Map<String, ResourceLocation> LOADED = new HashMap<>();
     private static final Set<String> MISSING = new HashSet<>();
@@ -143,7 +136,7 @@ public final class MenuAssetsManager {
      *     иначе -> встроенная (результат кэшируется в MISSING).
      */
     public static ResourceLocation get(String assetId) {
-        if (ATLAS_SOURCES.containsKey(assetId)) {
+        if (ATLAS_IDS.contains(assetId)) {
             buildAtlasIfNeeded();
             return atlasLocation;
         }
@@ -228,7 +221,7 @@ public final class MenuAssetsManager {
         return location;
     }
 
-    /** Собирает дефолтный атлас из встроенных gui-текстур по фиксированной раскладке. */
+    /** Собирает дефолтный атлас: вырезает регионы из встроенного gui_atlas.png. */
     private static NativeImage buildDefaultAtlas() {
         NativeImage atlas = new NativeImage(ATLAS_W, ATLAS_H, true);
         for (int y = 0; y < ATLAS_H; y++) {
@@ -236,14 +229,20 @@ public final class MenuAssetsManager {
                 atlas.setPixelRGBA(x, y, 0);
             }
         }
-        for (String id : ATLAS_SOURCES.keySet()) {
-            int[] reg = ATLAS_REGIONS.get(id);
-            NativeImage src = loadEmbedded(ATLAS_SOURCES.get(id));
-            if (src == null) {
-                continue;
+        NativeImage sheet = loadEmbedded(new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/gui_atlas.png"));
+        if (sheet == null) {
+            return atlas;
+        }
+        try {
+            for (String id : ATLAS_IDS) {
+                int[] reg = ATLAS_REGIONS.get(id);
+                if (reg == null) {
+                    continue;
+                }
+                drawInto(atlas, sheet, reg[0], reg[1], reg[2], reg[3]);
             }
-            drawInto(atlas, src, reg[0], reg[1], reg[2], reg[3]);
-            src.close();
+        } finally {
+            sheet.close();
         }
         return atlas;
     }

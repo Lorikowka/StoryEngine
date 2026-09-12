@@ -2,6 +2,7 @@ package com.storyengine.player;
 
 import com.storyengine.network.QuestNetworking;
 import com.storyengine.quest.QuestStatus;
+import com.storyengine.trigger.event.EventTriggerHooks;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 
@@ -25,11 +26,13 @@ public final class PlayerQuestDataHelper {
     public static void setStatus(ServerPlayer player, String questId, QuestStatus status) {
         getData(player).setStatus(questId, status);
         sync(player);
+        EventTriggerHooks.fireQuestChanged(player, (net.minecraft.server.level.ServerLevel) player.level);
     }
 
     public static void reset(ServerPlayer player, String questId) {
         getData(player).reset(questId);
         sync(player);
+        EventTriggerHooks.fireQuestChanged(player, (net.minecraft.server.level.ServerLevel) player.level);
     }
 
     public static boolean isTaskCompleted(Player player, String questId, String taskId) {
@@ -39,6 +42,7 @@ public final class PlayerQuestDataHelper {
     public static void completeTask(ServerPlayer player, String questId, String taskId) {
         getData(player).completeTask(questId, taskId);
         sync(player);
+        EventTriggerHooks.fireQuestChanged(player, (net.minecraft.server.level.ServerLevel) player.level);
     }
 
     public static int getTaskProgress(Player player, String questId, String taskId) {

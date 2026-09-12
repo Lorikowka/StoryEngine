@@ -29,7 +29,7 @@ import java.util.UUID;
  * чтобы не плодить отдельный SimpleChannel на каждый модуль. Создавать второй
  * канал с тем же именем "main" нельзя - это падает при загрузке мода.
  *
- * Пакеты (id на общем канале; 10-11 заняты InteractionNetworking):
+ * Пакеты (id на общем канале):
  *   6 - S2COpenDialoguePacket
  *   7 - S2CUpdateDialoguePacket
  *   8 - S2CCloseDialoguePacket

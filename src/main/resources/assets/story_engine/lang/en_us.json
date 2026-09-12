@@ -2,5 +2,14 @@
   "key.categories.story_engine": "Story Engine",
   "key.story_engine.open_quest_menu": "Open Quest Menu",
   "key.story_engine.open_narrative_log": "Open Narrative Chat Log",
-  "key.story_engine.interact": "Interact (F)"
+  "key.story_engine.interact": "Interact (F)",
+  "story_engine.action.open": "Open",
+  "story_engine.action.use": "Use",
+  "story_engine.action.press": "Press",
+  "story_engine.action.toggle": "Toggle",
+  "story_engine.action.sleep": "Sleep",
+  "story_engine.action.ring": "Ring",
+  "story_engine.action.take": "Take",
+  "story_engine.action.trade": "Trade",
+  "story_engine.action.sit": "Sit"
 }

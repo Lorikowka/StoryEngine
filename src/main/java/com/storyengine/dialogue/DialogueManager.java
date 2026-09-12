@@ -231,12 +231,20 @@ public class DialogueManager {
     }
 
     public void stop(ServerPlayer player) {
-        sessions.remove(player.getUUID());
+        closeSession(player);
     }
 
     @Nullable
     public DialogueSession getSession(ServerPlayer player) {
         return sessions.get(player.getUUID());
+    }
+
+    /** Закрытие сессии с fire события DIALOGUE_FINISH (ТЗ §4.2). */
+    private void closeSession(ServerPlayer player) {
+        if (sessions.remove(player.getUUID()) != null && !player.level.isClientSide) {
+            com.storyengine.trigger.event.EventTriggerHooks.fireDialogueFinished(
+                    player, (net.minecraft.server.level.ServerLevel) player.level);
+        }
     }
 
     /** Результат выбора ответа: к какому узлу перейти (или закрыть). */
@@ -269,7 +277,7 @@ public class DialogueManager {
 
         DialogueNode node = loadNode(session.getDialogueId(), session.getCurrentNodeId()).orElse(null);
         if (node == null) {
-            sessions.remove(player.getUUID());
+            closeSession(player);
             return null;
         }
 
@@ -301,7 +309,7 @@ public class DialogueManager {
         session.markResponseExecuted(key);
 
         if (response.shouldClose()) {
-            sessions.remove(player.getUUID());
+            closeSession(player);
             return new SelectResult(null, true);
         }
 
@@ -310,7 +318,7 @@ public class DialogueManager {
             DialogueNode nextNode = loadNode(session.getDialogueId(), nextNodeId).orElse(null);
             if (nextNode == null) {
                 LOGGER.warn("[StoryEngine] Узел '{}' не найден в диалоге '{}'", nextNodeId, session.getDialogueId());
-                sessions.remove(player.getUUID());
+                closeSession(player);
                 return new SelectResult(null, true);
             }
             session.setCurrentNodeId(nextNodeId);

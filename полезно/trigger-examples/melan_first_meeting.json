@@ -1,0 +1,28 @@
+{
+  "id": "melan_first_meeting",
+  "event": "interact_entity",
+  "target_type": "entity",
+  "target_tag": "story_npc_melan",
+
+  "enabled": true,
+  "priority": 0,
+  "one_time": true,
+  "cancel_vanilla": false,
+  "hint_label": "Поговорить с Мэлан",
+
+  "conditions": [
+    "quest:prologue:active",
+    "not:flag:melan_met"
+  ],
+
+  "actions": [
+    {
+      "type": "run_command",
+      "command": "story dialogue start @p melan start"
+    },
+    {
+      "type": "run_command",
+      "command": "give @p minecraft:paper 1"
+    }
+  ]
+}

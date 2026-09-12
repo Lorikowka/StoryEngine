@@ -91,28 +91,21 @@ public final class MenuCustomizationConfig {
     public static final ForgeConfigSpec.IntValue DIALOGUE_RESPONSE_PRESSED_BORDER;
     public static final ForgeConfigSpec.IntValue DIALOGUE_RESPONSE_PRESSED_TEXT;
 
-    // === Interaction System (меню взаимодействия, левый нижний угол) ===
-    public static final ForgeConfigSpec.BooleanValue INTERACTION_ENABLED;
+    // === General Hint System (подсказка [F] и мировые маркеры, левый нижний угол) ===
+    public static final ForgeConfigSpec.BooleanValue INTERACTION_HINT_ENABLED;
+    public static final ForgeConfigSpec.BooleanValue INTERACTION_HINT_USE_TEXTURE;
+    public static final ForgeConfigSpec.IntValue INTERACTION_HINT_SCAN_RADIUS;
+    public static final ForgeConfigSpec.IntValue INTERACTION_HINT_MAX_MARKERS;
+    public static final ForgeConfigSpec.IntValue INTERACTION_HINT_LEFT_OFFSET;
+    public static final ForgeConfigSpec.IntValue INTERACTION_HINT_BOTTOM_OFFSET;
+    public static final ForgeConfigSpec.IntValue INTERACTION_HINT_FILL;
+    public static final ForgeConfigSpec.IntValue INTERACTION_HINT_BORDER;
+    public static final ForgeConfigSpec.IntValue INTERACTION_HINT_TEXT;
+    public static final ForgeConfigSpec.IntValue INTERACTION_HINT_MARKER;
+    public static final ForgeConfigSpec.IntValue INTERACTION_HINT_MARKER_AIMED;
 
     // === Narrative HUD (сюжетный чат, центр-низ экрана) ===
     public static final ForgeConfigSpec.IntValue NARRATIVE_TEXT_SPEED;
-    public static final ForgeConfigSpec.BooleanValue INTERACTION_USE_TEXTURE;
-    public static final ForgeConfigSpec.IntValue INTERACTION_PANEL_X;
-    public static final ForgeConfigSpec.IntValue INTERACTION_PANEL_BOTTOM_OFFSET;
-    public static final ForgeConfigSpec.IntValue INTERACTION_PANEL_WIDTH;
-    public static final ForgeConfigSpec.IntValue INTERACTION_ITEM_HEIGHT;
-    public static final ForgeConfigSpec.IntValue INTERACTION_ITEM_GAP;
-    public static final ForgeConfigSpec.IntValue INTERACTION_PANEL_FILL;
-    public static final ForgeConfigSpec.IntValue INTERACTION_PANEL_BORDER;
-    public static final ForgeConfigSpec.IntValue INTERACTION_FOCUS;
-    public static final ForgeConfigSpec.IntValue INTERACTION_HEADER_FILL;
-    public static final ForgeConfigSpec.IntValue INTERACTION_HEADER_TEXT;
-    public static final ForgeConfigSpec.IntValue INTERACTION_ITEM_ACTIVE_FILL;
-    public static final ForgeConfigSpec.IntValue INTERACTION_ITEM_ACTIVE_TEXT;
-    public static final ForgeConfigSpec.IntValue INTERACTION_ITEM_IDLE_FILL;
-    public static final ForgeConfigSpec.IntValue INTERACTION_ITEM_IDLE_TEXT;
-    public static final ForgeConfigSpec.IntValue INTERACTION_ITEM_LOCKED_FILL;
-    public static final ForgeConfigSpec.IntValue INTERACTION_ITEM_LOCKED_TEXT;
 
     static {
         BUILDER.comment("Настройки кастомизации меню квестов (текстуры, цвета, масштаб).")
@@ -247,46 +240,42 @@ public final class MenuCustomizationConfig {
         LOG_SCROLLBAR_THUMB = color("scrollbarThumb", 0x90FFFFFF, "Бегунок скроллбара.");
         BUILDER.pop();
 
-        BUILDER.comment("Настройки меню интерактивного взаимодействия (Interaction System, левый нижний угол).")
-                .push("interactionCustomization");
+        BUILDER.comment("General-подсказки взаимодействия (Interaction Hint System): HUD «[F] Действие» в левом",
+                "нижнем углу для интерактиблов (двери, сундуки, верстаки, кровати и т.п.), мировые кольца-маркеры",
+                "у близких интерактиблов, а также фолбэк клавиши F на ванильное воздействие (правый клик).")
+                .push("interactionHintCustomization");
 
-        INTERACTION_ENABLED = BUILDER.comment(
-                        "true - использовать кастомные цвета/геометрию/текстуру меню взаимодействия из этого раздела.",
-                        "false - рисовать меню взаимодействия встроенными значениями по умолчанию.")
+        INTERACTION_HINT_ENABLED = BUILDER.comment(
+                        "true - включить подсказки взаимодействия и фолбэк F на ванильный клик.",
+                        "false - полностью выключить фичу (HUD, маркеры, F-фолбэк).")
                 .define("enabled", true);
 
-        INTERACTION_USE_TEXTURE = BUILDER.comment(
-                        "true - рисовать панель поверх кастомной текстуры config/story_engine/menu/interaction_menu.png.",
-                        "false - рисовать панель сплошной заливкой (цвета ниже).")
+        INTERACTION_HINT_USE_TEXTURE = BUILDER.comment(
+                        "true - рисовать плашку поверх кастомной текстуры config/story_engine/menu/interaction_hint.png.",
+                        "false - рисовать плашку сплошной заливкой (цвета ниже).")
                 .define("useTexture", true);
 
-        BUILDER.comment("Геометрия панели в пикселях (см. спецификацию Interaction System §2).").push("layout");
-        INTERACTION_PANEL_X = BUILDER.comment("Отступ панели от левого края экрана.")
-                .defineInRange("panelX", 18, 0, 2000);
-        INTERACTION_PANEL_BOTTOM_OFFSET = BUILDER.comment("Отступ панели от нижнего края (чтобы не залезать в самый угол).")
-                .defineInRange("panelBottomOffset", 44, 0, 2000);
-        INTERACTION_PANEL_WIDTH = BUILDER.comment(
-                        "Минимальная ширина панели. 0 = авто: ширина плотно подстраивается под",
-                        "самую длинную строку + паддинг 8px слева и справа.")
-                .defineInRange("panelWidth", 0, 0, 2000);
-        INTERACTION_ITEM_HEIGHT = BUILDER.comment("Высота одного пункта списка.")
-                .defineInRange("itemHeight", 18, 8, 200);
-        INTERACTION_ITEM_GAP = BUILDER.comment("Расстояние между пунктами списка.")
-                .defineInRange("itemGap", 4, 0, 100);
+        BUILDER.comment("Геометрия и скан.").push("layout");
+        INTERACTION_HINT_SCAN_RADIUS = BUILDER.comment(
+                        "Радиус (в блоках) куба скана близких интерактиблов вокруг игрока.",
+                        "Оригинал мода использовал 5. Допустимо 0..8.")
+                .defineInRange("scanRadius", 5, 0, 8);
+        INTERACTION_HINT_MAX_MARKERS = BUILDER.comment(
+                        "Лимит мировых маркеров-колец (ближайшие цели при превышении).",
+                        "0 = без лимита.")
+                .defineInRange("maxMarkers", 32, 0, 256);
+        INTERACTION_HINT_LEFT_OFFSET = BUILDER.comment("Отступ HUD от левого края экрана (px).")
+                .defineInRange("leftOffset", 18, 0, 2000);
+        INTERACTION_HINT_BOTTOM_OFFSET = BUILDER.comment("Отступ HUD от нижнего края экрана (px).")
+                .defineInRange("bottomOffset", 20, 0, 2000);
         BUILDER.pop();
 
-        BUILDER.comment("Цвета в формате ARGB (0xAARRGGBB, 8 hex-цифр). Палитра изумрудно-зелёная.").push("colors");
-        INTERACTION_PANEL_FILL = color("panelFill", 0xEA06140D, "Фон панели (глубокий тёмно-изумрудный графит).");
-        INTERACTION_PANEL_BORDER = color("panelBorder", 0x8010B981, "Основная рамка панели (полупрозрачный изумруд).");
-        INTERACTION_FOCUS = color("focus", 0xFF22C55E, "Акцентная подсветка фокуса/наведения (яркий неоново-зелёный).");
-        INTERACTION_HEADER_FILL = color("headerFill", 0xEA0A2A18, "Фон шапки панели (имя объекта).");
-        INTERACTION_HEADER_TEXT = color("headerText", 0xA7F3D0, "Текст шапки (светло-мятный).");
-        INTERACTION_ITEM_ACTIVE_FILL = color("itemActiveFill", 0xD00F3D24, "Фон активного пункта (насыщенный зелёный).");
-        INTERACTION_ITEM_ACTIVE_TEXT = color("itemActiveText", 0xFFFFFF55, "Текст активного пункта (ярко-жёлтый #FFFF55).");
-        INTERACTION_ITEM_IDLE_FILL = color("itemIdleFill", 0x70092315, "Фон неактивного пункта (приглушённый болотный).");
-        INTERACTION_ITEM_IDLE_TEXT = color("itemIdleText", 0xFF8D989F, "Текст неактивного пункта (приглушённый серый).");
-        INTERACTION_ITEM_LOCKED_FILL = color("itemLockedFill", 0x5006140D, "Фон заблокированного пункта.");
-        INTERACTION_ITEM_LOCKED_TEXT = color("itemLockedText", 0x556B5F, "Текст заблокированного пункта (приглушённый серый).");
+        BUILDER.comment("Цвета в формате ARGB (0xAARRGGBB, 8 hex-цифр).").push("colors");
+        INTERACTION_HINT_FILL = color("fill", 0x9006111D, "Фон плашки HUD.");
+        INTERACTION_HINT_BORDER = color("border", 0x8010B981, "Рамка 1px вокруг плашки HUD.");
+        INTERACTION_HINT_TEXT = color("text", 0xFFFFFFFF, "Цвет текста «[F] Действие».");
+        INTERACTION_HINT_MARKER = color("marker", 0x5522C55E, "Кольцо-маркер близкого интерактибла (idle).");
+        INTERACTION_HINT_MARKER_AIMED = color("markerAimed", 0xFF22C55E, "Кольцо+заливка цели под крестовиной.");
         BUILDER.pop();
 
         BUILDER.pop();
@@ -573,77 +562,49 @@ public final class MenuCustomizationConfig {
         return gated(LOG_SCROLLBAR_THUMB, enabled());
     }
 
-    // === Interaction System (меню взаимодействия) ===
-    public static boolean interactionEnabled() {
-        return INTERACTION_ENABLED.get();
+    // === General Hint System (подсказка [F] и мировые маркеры) ===
+    public static boolean interactionHintEnabled() {
+        return INTERACTION_HINT_ENABLED.get();
     }
 
-    public static boolean interactionUseTexture() {
-        return INTERACTION_USE_TEXTURE.get();
+    public static boolean hintUseTexture() {
+        return INTERACTION_HINT_USE_TEXTURE.get() && interactionHintEnabled();
     }
 
-    public static int interactionPanelX() {
-        return gated(INTERACTION_PANEL_X, interactionEnabled());
+    public static int hintScanRadius() {
+        return INTERACTION_HINT_SCAN_RADIUS.get();
     }
 
-    public static int interactionPanelBottomOffset() {
-        return gated(INTERACTION_PANEL_BOTTOM_OFFSET, interactionEnabled());
+    public static int hintMaxMarkers() {
+        return INTERACTION_HINT_MAX_MARKERS.get();
     }
 
-    public static int interactionPanelWidth() {
-        return gated(INTERACTION_PANEL_WIDTH, interactionEnabled());
+    public static int hintLeftOffset() {
+        return gated(INTERACTION_HINT_LEFT_OFFSET, interactionHintEnabled());
     }
 
-    public static int interactionItemHeight() {
-        return gated(INTERACTION_ITEM_HEIGHT, interactionEnabled());
+    public static int hintBottomOffset() {
+        return gated(INTERACTION_HINT_BOTTOM_OFFSET, interactionHintEnabled());
     }
 
-    public static int interactionItemGap() {
-        return gated(INTERACTION_ITEM_GAP, interactionEnabled());
+    public static int hintFill() {
+        return gated(INTERACTION_HINT_FILL, interactionHintEnabled());
     }
 
-    public static int interactionPanelFill() {
-        return gated(INTERACTION_PANEL_FILL, interactionEnabled());
+    public static int hintBorder() {
+        return gated(INTERACTION_HINT_BORDER, interactionHintEnabled());
     }
 
-    public static int interactionPanelBorder() {
-        return gated(INTERACTION_PANEL_BORDER, interactionEnabled());
+    public static int hintText() {
+        return gated(INTERACTION_HINT_TEXT, interactionHintEnabled());
     }
 
-    public static int interactionFocus() {
-        return gated(INTERACTION_FOCUS, interactionEnabled());
+    public static int hintMarker() {
+        return gated(INTERACTION_HINT_MARKER, interactionHintEnabled());
     }
 
-    public static int interactionHeaderFill() {
-        return gated(INTERACTION_HEADER_FILL, interactionEnabled());
-    }
-
-    public static int interactionHeaderText() {
-        return gated(INTERACTION_HEADER_TEXT, interactionEnabled());
-    }
-
-    public static int interactionItemActiveFill() {
-        return gated(INTERACTION_ITEM_ACTIVE_FILL, interactionEnabled());
-    }
-
-    public static int interactionItemActiveText() {
-        return gated(INTERACTION_ITEM_ACTIVE_TEXT, interactionEnabled());
-    }
-
-    public static int interactionItemIdleFill() {
-        return gated(INTERACTION_ITEM_IDLE_FILL, interactionEnabled());
-    }
-
-    public static int interactionItemIdleText() {
-        return gated(INTERACTION_ITEM_IDLE_TEXT, interactionEnabled());
-    }
-
-    public static int interactionItemLockedFill() {
-        return gated(INTERACTION_ITEM_LOCKED_FILL, interactionEnabled());
-    }
-
-    public static int interactionItemLockedText() {
-        return gated(INTERACTION_ITEM_LOCKED_TEXT, interactionEnabled());
+    public static int hintMarkerAimed() {
+        return gated(INTERACTION_HINT_MARKER_AIMED, interactionHintEnabled());
     }
 
     private MenuCustomizationConfig() {

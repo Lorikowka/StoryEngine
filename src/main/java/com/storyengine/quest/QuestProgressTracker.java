@@ -246,6 +246,7 @@ public class QuestProgressTracker {
             // а не на каждом тике - иначе клиенту летит полный пакет
             // квестов 20 раз в секунду на каждую отслеживаемую задачу.
             QuestNetworking.syncToPlayer(player);
+            com.storyengine.trigger.event.EventTriggerHooks.fireQuestChanged(player, (net.minecraft.server.level.ServerLevel) player.level);
         }
     }
 

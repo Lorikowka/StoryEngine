@@ -17,7 +17,6 @@ import net.minecraftforge.fml.common.Mod;
  *   /story dialogue ...   (бывш. /dialogue)
  *   /story tell ...       (бывш. /storytell)
  *   /story quest ...      (бывш. /quest)
- *   /story trigger ...    (бывш. /trigger)
  *   /story menu ...       (бывш. /storymenu)
  *   /story help [area]
  *
@@ -38,15 +37,14 @@ public final class StoryCommand {
                 .then(DialogueCommand.build("dialogue"))
                 .then(TellCommand.build("tell"))
                 .then(QuestCommand.build("quest"))
-                .then(TriggerCommand.build("trigger"))
                 .then(MenuCustomizationCommand.build("menu"))
+                .then(TriggerCommand.build("trigger"))
                 .then(buildHelp()));
 
         // Обратно совместимые алиасы (старые имена корней)
         dispatcher.register(DialogueCommand.build("dialogue"));
         dispatcher.register(TellCommand.build("storytell"));
         dispatcher.register(QuestCommand.build("quest"));
-        dispatcher.register(TriggerCommand.build("trigger"));
         dispatcher.register(MenuCustomizationCommand.build("storymenu"));
     }
 
@@ -74,9 +72,9 @@ public final class StoryCommand {
             CommandFeedback.info(source, "  dialogue — сюжетные диалоги с NPC");
             CommandFeedback.info(source, "  tell     — сюжетные реплики (Narrative HUD)");
             CommandFeedback.info(source, "  quest    — квесты и подзадачи");
-            CommandFeedback.info(source, "  trigger  — интерактивные триггеры");
             CommandFeedback.info(source, "  menu     — текстуры меню");
-            CommandFeedback.info(source, "Подробнее: /story help <раздел>. Старые имена (/dialogue, /quest, /storytell, /trigger, /storymenu) работают как алиасы.");
+            CommandFeedback.info(source, "  trigger  — триггеры (JSON-события)");
+            CommandFeedback.info(source, "Подробнее: /story help <раздел>. Старые имена (/dialogue, /quest, /storytell, /storymenu) работают как алиасы.");
             return 0;
         }
 
@@ -103,17 +101,21 @@ public final class StoryCommand {
                 CommandFeedback.info(source, "  task complete|remove|edit|add ... (см. /story quest в игре по Tab)");
                 CommandFeedback.info(source, "  edit <id> title|description <text>");
                 break;
-            case "trigger":
-                CommandFeedback.info(source, "Команды раздела trigger:");
-                CommandFeedback.info(source, "  create <id> [name] | reload | list | enable <id> | disable <id>");
-                break;
             case "menu":
                 CommandFeedback.info(source, "Команды раздела menu:");
                 CommandFeedback.info(source, "  reset  — вернуть PNG меню к исходным");
                 CommandFeedback.info(source, "  reload — сбросить кэш текстур (подхватить ручные правки)");
                 break;
+            case "trigger":
+                CommandFeedback.info(source, "Команды раздела trigger:");
+                CommandFeedback.info(source, "  reload              — перечитать JSON-триггеры с диска");
+                CommandFeedback.info(source, "  list [event]        — список триггеров");
+                CommandFeedback.info(source, "  info <id>           — детали триггера");
+                CommandFeedback.info(source, "  test <id> <player>  — доступность триггера у игрока");
+                CommandFeedback.info(source, "  debug <player>      — что под прицелом у игрока");
+                break;
             default:
-                return CommandFeedback.fail(source, "Неизвестный раздел '" + area + "'. Доступны: dialogue, tell, quest, trigger, menu.");
+                return CommandFeedback.fail(source, "Неизвестный раздел '" + area + "'. Доступны: dialogue, tell, quest, menu, trigger.");
         }
         return 0;
     }

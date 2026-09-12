@@ -135,7 +135,7 @@ public final class DialogueActionExecutor {
     }
 
     /** Разбирает "id count" / "id{nbt} count" или объект {id, count, nbt}. */
-    static ItemStack parseGive(Object give) {
+    public static ItemStack parseGive(Object give) {
         String itemId;
         int count = 1;
         String nbt = null;
