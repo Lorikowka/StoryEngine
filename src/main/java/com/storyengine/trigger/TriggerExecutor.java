@@ -204,4 +204,33 @@ public final class TriggerExecutor {
     private static void markDone(ServerPlayer player, String triggerId) {
         PlayerDialogueData.get(player).setFlag(DONE_FLAG_PREFIX + triggerId, true);
     }
+
+    /**
+     * Снимает one_time-флаг конкретного триггера — триггер снова доступен игроку.
+     *
+     * @return {@code true}, если флаг был установлен (сброс имел эффект)
+     */
+    public static boolean clearDone(ServerPlayer player, String triggerId) {
+        PlayerDialogueData data = PlayerDialogueData.get(player);
+        boolean was = data.getFlag(DONE_FLAG_PREFIX + triggerId);
+        data.setFlag(DONE_FLAG_PREFIX + triggerId, false);
+        return was;
+    }
+
+    /**
+     * Снимает ВСЕ one_time-флаги триггеров игрока (новое прохождение карты).
+     *
+     * @return количество сброшенных флагов
+     */
+    public static int clearAllDone(ServerPlayer player) {
+        PlayerDialogueData data = PlayerDialogueData.get(player);
+        int count = 0;
+        for (String key : data.getFlags().keySet()) {
+            if (key.startsWith(DONE_FLAG_PREFIX)) {
+                data.setFlag(key, false);
+                count++;
+            }
+        }
+        return count;
+    }
 }

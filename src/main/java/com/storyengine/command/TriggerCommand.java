@@ -33,6 +33,7 @@ import java.util.concurrent.CompletableFuture;
  *   /story trigger disable <id>           — отключить триггер
  *   /story trigger test <triggerId> <player> — проверить доступность для игрока
  *   /story trigger debug <player>         — что сейчас под прицелом у игрока
+ *   /story trigger reset <player> [id]    — снять one_time-флаги триггеров (новое прохождение)
  *
  * Все команды требуют permission level 2.
  */
@@ -90,7 +91,14 @@ public final class TriggerCommand {
 
                 .then(Commands.literal("debug")
                         .then(Commands.argument("player", EntityArgument.player())
-                                .executes(TriggerCommand::debug)));
+                                .executes(TriggerCommand::debug)))
+
+                .then(Commands.literal("reset")
+                        .then(Commands.argument("player", EntityArgument.player())
+                                .executes(TriggerCommand::resetAll)
+                                .then(Commands.argument("id", StringArgumentType.word())
+                                        .suggests(TriggerCommand::suggestTriggerIds)
+                                        .executes(TriggerCommand::resetOne))));
     }
 
     // ----------------------------------------------------------------
@@ -233,15 +241,35 @@ public final class TriggerCommand {
             return CommandFeedback.fail(source, "Триггер '" + id + "' не найден.");
         }
         TriggerDefinition def = opt.get();
+        net.minecraft.server.level.ServerLevel level = (net.minecraft.server.level.ServerLevel) player.level;
 
-        // Non-interaction (state) events: доступность оцениваем по игроку без цели.
         boolean available = TriggerExecutor.isAvailable(
-                TriggerContext.builder(
-                        player, (net.minecraft.server.level.ServerLevel) player.level, def.event()).build(),
+                TriggerContext.builder(player, level, def.event()).build(),
                 def);
+        if (!available) {
+            return CommandFeedback.fail(source,
+                    "Триггер '" + id + "' у игрока " + player.getName().getString()
+                            + " недоступен (отключён / one_time уже отработан / условия не выполнены).");
+        }
+
+        // Для interaction-событий цель обязана существовать в мире: сущность с target_tag.
+        // По правилу §5.2 цель всегда «сущность с тегом», даже для блоков (маркер).
+        if (def.event().isInteraction() && def.targetTag() != null) {
+            net.minecraft.world.entity.Entity target = manager.findTarget(level, player, def.targetTag());
+            if (target == null) {
+                return CommandFeedback.fail(source,
+                        "Триггер '" + id + "' у игрока " + player.getName().getString()
+                                + " доступен, но в мире нет сущности с тегом '" + def.targetTag()
+                                + "' — клик по цели не сработает.");
+            }
+            return CommandFeedback.success(source,
+                    "Триггер '" + id + "' у игрока " + player.getName().getString()
+                            + ": ДОСТУПЕН (цель '" + target.getName().getString()
+                            + "' с тегом '" + def.targetTag() + "' найдена)");
+        }
+
         return CommandFeedback.success(source,
-                "Триггер '" + id + "' у игрока " + player.getName().getString() + ": "
-                        + (available ? "ДОСТУПЕН" : "недоступен (условия/one_time/отключён)"));
+                "Триггер '" + id + "' у игрока " + player.getName().getString() + ": ДОСТУПЕН");
     }
 
     // ----------------------------------------------------------------
@@ -261,6 +289,35 @@ public final class TriggerCommand {
                 + player.getName().getString() + " триггер '" + hint.triggerId()
                 + "' (tag=" + hint.targetTag() + ", label=" + hint.hintLabel()
                 + ", cancel_vanilla=" + hint.cancelVanilla() + ")");
+    }
+
+    // ----------------------------------------------------------------
+    // reset <player> [id]
+    // ----------------------------------------------------------------
+    private static int resetAll(CommandContext<CommandSourceStack> ctx) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        CommandSourceStack source = ctx.getSource();
+        ServerPlayer player = EntityArgument.getPlayer(ctx, "player");
+        int count = TriggerExecutor.clearAllDone(player);
+        resyncHints(player);
+        return CommandFeedback.success(source, "Сброшено one_time-флагов триггеров у "
+                + player.getName().getString() + ": " + count + ". Триггеры снова доступны (новое прохождение).");
+    }
+
+    private static int resetOne(CommandContext<CommandSourceStack> ctx) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        CommandSourceStack source = ctx.getSource();
+        String id = StringArgumentType.getString(ctx, "id");
+        ServerPlayer player = EntityArgument.getPlayer(ctx, "player");
+        boolean reset = TriggerExecutor.clearDone(player, id);
+        resyncHints(player);
+        return CommandFeedback.success(source, reset
+                ? "Триггер '" + id + "' у " + player.getName().getString() + " снова доступен."
+                : "У " + player.getName().getString() + " не было one_time-флага триггера '" + id + "' (уже доступен).");
+    }
+
+    private static void resyncHints(ServerPlayer player) {
+        if (player.level instanceof net.minecraft.server.level.ServerLevel serverLevel) {
+            TriggerHintService.get().resync(player, serverLevel);
+        }
     }
 
     // ----------------------------------------------------------------

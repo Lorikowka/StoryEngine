@@ -3,8 +3,10 @@ package com.storyengine.player;
 import com.storyengine.network.QuestNetworking;
 import com.storyengine.quest.QuestStatus;
 import com.storyengine.trigger.event.EventTriggerHooks;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
+import net.minecraftforge.common.util.INBTSerializable;
 
 /**
  * Современный слой доступа к прогрессу квестов игрока через capability.
@@ -31,6 +33,25 @@ public final class PlayerQuestDataHelper {
 
     public static void reset(ServerPlayer player, String questId) {
         getData(player).reset(questId);
+        sync(player);
+        EventTriggerHooks.fireQuestChanged(player, (net.minecraft.server.level.ServerLevel) player.level);
+    }
+
+    /** Полный сброс всех квестов/задач/прогресса игрока (новое прохождение). */
+    public static void clearAll(ServerPlayer player) {
+        getData(player).clear();
+        sync(player);
+        EventTriggerHooks.fireQuestChanged(player, (net.minecraft.server.level.ServerLevel) player.level);
+    }
+
+    /** NBT-снимок прогресса квестов (через INBTSerializable, как принято в проекте). */
+    public static CompoundTag serializeNbt(Player player) {
+        return ((INBTSerializable<CompoundTag>) getData(player)).serializeNBT();
+    }
+
+    /** Применяет NBT-снимок прогресса квестов игроку (чекпойнт restore) и синхронизирует. */
+    public static void deserializeNbt(ServerPlayer player, CompoundTag tag) {
+        ((INBTSerializable<CompoundTag>) getData(player)).deserializeNBT(tag);
         sync(player);
         EventTriggerHooks.fireQuestChanged(player, (net.minecraft.server.level.ServerLevel) player.level);
     }

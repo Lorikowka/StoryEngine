@@ -39,6 +39,11 @@ public class PlayerDialogueData implements INBTSerializable<CompoundTag> {
         return Collections.unmodifiableMap(flags);
     }
 
+    /** Очищает все флаги (полный рестарт прохождения карты — /story reset). */
+    public void clearFlags() {
+        flags.clear();
+    }
+
     public void copyFrom(PlayerDialogueData other) {
         flags.clear();
         flags.putAll(other.flags);

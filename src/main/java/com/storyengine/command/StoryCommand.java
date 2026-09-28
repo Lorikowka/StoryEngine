@@ -39,6 +39,7 @@ public final class StoryCommand {
                 .then(QuestCommand.build("quest"))
                 .then(MenuCustomizationCommand.build("menu"))
                 .then(TriggerCommand.build("trigger"))
+                .then(ResetCommand.build("reset"))
                 .then(buildHelp()));
 
         // Обратно совместимые алиасы (старые имена корней)
@@ -74,6 +75,7 @@ public final class StoryCommand {
             CommandFeedback.info(source, "  quest    — квесты и подзадачи");
             CommandFeedback.info(source, "  menu     — текстуры меню");
             CommandFeedback.info(source, "  trigger  — триггеры (JSON-события)");
+            CommandFeedback.info(source, "  reset <player> — сброс прогресса (новое прохождение)");
             CommandFeedback.info(source, "Подробнее: /story help <раздел>. Старые имена (/dialogue, /quest, /storytell, /storymenu) работают как алиасы.");
             return 0;
         }
@@ -92,6 +94,8 @@ public final class StoryCommand {
                 CommandFeedback.info(source, "  /story tell <targets> <speaker> <icon> [color <hex>] <message>");
                 CommandFeedback.info(source, "    speaker — одно слово без кавычек, либо \"Голос за кадром\" в кавычках");
                 CommandFeedback.info(source, "    message — JSON, как в /tellraw: {\"text\":\"...\"}, последний аргумент");
+                CommandFeedback.info(source, "  /story tell <targets> chorus <speakers-json> <message> — реплика от нескольких спикеров");
+                CommandFeedback.info(source, "    speakers-json — массив объектов {\"name\",\"icon\",\"name_color\"}");
                 CommandFeedback.info(source, "  /story tell defaultcolor <hex>");
                 break;
             case "quest":
@@ -111,8 +115,12 @@ public final class StoryCommand {
                 CommandFeedback.info(source, "  reload              — перечитать JSON-триггеры с диска");
                 CommandFeedback.info(source, "  list [event]        — список триггеров");
                 CommandFeedback.info(source, "  info <id>           — детали триггера");
+                CommandFeedback.info(source, "  create <id> [event] — создать шаблон-файл триггера");
+                CommandFeedback.info(source, "  delete <id>         — удалить триггер (кэш + файл)");
+                CommandFeedback.info(source, "  enable|disable <id> — включить/отключить триггер");
                 CommandFeedback.info(source, "  test <id> <player>  — доступность триггера у игрока");
                 CommandFeedback.info(source, "  debug <player>      — что под прицелом у игрока");
+                CommandFeedback.info(source, "  reset <player> [id] — снять one_time-флаги триггеров");
                 break;
             default:
                 return CommandFeedback.fail(source, "Неизвестный раздел '" + area + "'. Доступны: dialogue, tell, quest, menu, trigger.");
