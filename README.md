@@ -180,6 +180,12 @@ Story Engine — это модульный инструментарий для �
 события, действия, правила конфликтов — в ТЗ
 `Story_Engine_Trigger_System_v1_TZ_edited.md`.
 
+> **Статус: чекпойнты сцен (Scene Checkpoint System) временно ОТКЛЮЧЕНЫ.**
+> Функция сохранения/восстановления сцен (команды `/story checkpoint ...`
+> и действия `save_checkpoint`/`restore_checkpoint`) не активна — зарегистрированный
+> код полностью изолирован и перемещён в папку `disabled/` (не компилируется).
+> Вернёмся к ней позже, если понадобится.
+
 ---
 
 ## Система квестов
@@ -377,5 +383,5 @@ config/story_engine/
 
 ---
 
-*Story Engine · версия 1.1.0 · Forge 1.19.2 · автор Lorikowka*
+*Story Engine · версия 1.1.1 · Forge 1.19.2 · автор Lorikowka*
 
