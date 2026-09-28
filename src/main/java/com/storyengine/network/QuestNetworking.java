@@ -39,7 +39,8 @@ public final class QuestNetworking {
     );
 
     private static int packetId = 0;
-    // Id 2 и 3 заняты в NarrativeNetworking.java (тот же CHANNEL) - см. тот класс.
+    // Id на общем CHANNEL, тот же канал: NarrativeNetworking = 2, DialogueNetworking = 6-9 и 12,
+    // TriggerNetworking = 13 и 14. Свободны пока 3, 10, 11. См. соответствующие классы.
     private static final int TOAST_PACKET_ID = 4;
     private static final int MENU_RESET_PACKET_ID = 5;
 

@@ -1,5 +1,9 @@
 package com.storyengine.command;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
@@ -8,7 +12,9 @@ import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.storyengine.StoryEngineMod;
 import com.storyengine.narrative.NarrativeMessage;
+import com.storyengine.narrative.SpeakerInfo;
 import com.storyengine.network.NarrativeNetworking;
+import com.mojang.logging.LogUtils;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.ComponentArgument;
@@ -16,8 +22,11 @@ import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.commands.arguments.selector.EntitySelector;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
+import org.slf4j.Logger;
 
 import java.util.Collection;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Подкоманда {@code /story tell} и алиас {@code /storytell}:
@@ -34,6 +43,8 @@ import java.util.Collection;
  *  - <message> - JSON-компонент текста, как в /tellraw (последний аргумент).
  */
 public final class TellCommand {
+
+    private static final Logger LOGGER = LogUtils.getLogger();
 
     private TellCommand() {
     }
@@ -69,6 +80,10 @@ public final class TellCommand {
                 Commands.argument("speaker", StringArgumentType.string()).then(icon);
 
         targets.then(speaker);
+        targets.then(Commands.literal("chorus")
+                .then(Commands.argument("speakers", StringArgumentType.string())
+                        .then(Commands.argument("message", ComponentArgument.textComponent())
+                                .executes(TellCommand::runChorus))));
         root.then(targets);
 
         // /story tell defaultcolor <hex> - цвет реплик игрока в NarrativeLogScreen
@@ -120,6 +135,62 @@ public final class TellCommand {
 
         return CommandFeedback.success(source,
                 "Сообщение от '" + speaker + "' отправлено игрокам: " + targets.size());
+    }
+
+    private static int runChorus(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+    CommandSourceStack source = ctx.getSource();
+    Collection<ServerPlayer> targets = EntityArgument.getPlayers(ctx, "targets");
+    Component message = ComponentArgument.getComponent(ctx, "message");
+    List<SpeakerInfo> speakers;
+    try {
+        JsonElement parsed = JsonParser.parseString(StringArgumentType.getString(ctx, "speakers"));
+        if (!parsed.isJsonArray()) {
+            throw new IllegalArgumentException("speakers must be an array");
+        }
+        JsonArray array = parsed.getAsJsonArray();
+        if (array.isEmpty()) {
+            throw new IllegalArgumentException("speakers must not be empty");
+        }
+        speakers = new ArrayList<>(array.size());
+        for (JsonElement element : array) {
+            if (!element.isJsonObject()) {
+                throw new IllegalArgumentException("each speaker must be an object");
+            }
+            JsonObject object = element.getAsJsonObject();
+            String name = object.has("name") ? object.get("name").getAsString() : "";
+            String icon = object.has("icon") ? object.get("icon").getAsString() : "none";
+            Integer color = object.has("name_color")
+                    ? parseSpeakerColor(object.get("name_color"))
+                    : NarrativeMessage.DEFAULT_NAME_COLOR;
+            if (color == null) {
+                throw new IllegalArgumentException("invalid name_color");
+            }
+            speakers.add(new SpeakerInfo(name, icon, color));
+        }
+    } catch (RuntimeException exception) {
+        LOGGER.warn("[StoryEngine] Некорректный speakers JSON в /story tell chorus: {}",
+                exception.getMessage());
+        return CommandFeedback.fail(source,
+                "Некорректный JSON speakers. Ожидается массив объектов name/icon/name_color.");
+    }
+
+    if (targets.isEmpty()) {
+        return CommandFeedback.fail(source, "Не найдено ни одного целевого игрока.");
+    }
+    NarrativeNetworking.sendToPlayers(targets, speakers, message);
+    return CommandFeedback.success(source, "Хоровая реплика отправлена игрокам: " + targets.size());
+}
+
+    /**
+     * Цвет имени спикера для «chorus»: число ARGB либо hex-строка ({@code RRGGBB} /
+     * {@code #RRGGBB}). Принимает те же форматы, что и действие триггера
+     * {@code story_tell}. {@code null}, если значение некорректное.
+     */
+    private static Integer parseSpeakerColor(JsonElement colorElement) {
+        if (colorElement.isJsonPrimitive() && colorElement.getAsJsonPrimitive().isNumber()) {
+            return colorElement.getAsInt();
+        }
+        return parseHexColor(colorElement.getAsString());
     }
 
     /** Принимает "RRGGBB" или "#RRGGBB". Возвращает null, если формат некорректный. */

@@ -2,6 +2,8 @@ package com.storyengine.narrative;
 
 import net.minecraft.network.chat.Component;
 
+import java.util.List;
+
 /**
  * Одно сообщение "сюжетного чата": кто говорит, какая иконка и сам текст
  * (с сохранением форматирования - как в /tellraw), плюс цвет имени спикера.
@@ -11,10 +13,8 @@ public final class NarrativeMessage {
     /** Цвет имени спикера по умолчанию (жёлтый), если не задан явно через /storytell. */
     public static final int DEFAULT_NAME_COLOR = 0xFFFF55;
 
-    private final String speaker;
-    private final String iconId;
+    private final List<SpeakerInfo> speakers;
     private final Component text;
-    private final int nameColor;
 
     /** Конструктор с цветом имени по умолчанию (жёлтый). */
     public NarrativeMessage(String speaker, String iconId, Component text) {
@@ -22,19 +22,28 @@ public final class NarrativeMessage {
     }
 
     public NarrativeMessage(String speaker, String iconId, Component text, int nameColor) {
-        this.speaker = speaker;
-        this.iconId = iconId;
+        this(List.of(new SpeakerInfo(speaker, iconId, nameColor)), text);
+    }
+
+    public NarrativeMessage(List<SpeakerInfo> speakers, Component text) {
+        if (speakers == null || speakers.isEmpty()) {
+            throw new IllegalArgumentException("NarrativeMessage requires at least one speaker");
+        }
+        this.speakers = List.copyOf(speakers);
         this.text = text;
-        this.nameColor = nameColor;
+    }
+
+    public List<SpeakerInfo> getSpeakers() {
+        return speakers;
     }
 
     public String getSpeaker() {
-        return speaker;
+        return speakers.get(0).name();
     }
 
     /** Сырое имя иконки без .png, как передано в /storytell. "none" - иконки нет. */
     public String getIconId() {
-        return iconId;
+        return speakers.get(0).iconId();
     }
 
     public Component getText() {
@@ -43,6 +52,6 @@ public final class NarrativeMessage {
 
     /** ARGB-цвет имени спикера (с альфой 0xFF), как задано в /storytell color <hex>. */
     public int getNameColor() {
-        return nameColor;
+        return speakers.get(0).nameColor();
     }
 }

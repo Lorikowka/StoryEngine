@@ -6,9 +6,11 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.storyengine.StoryEngineMod;
 import com.storyengine.narrative.NarrativeChatManager;
 import com.storyengine.narrative.NarrativeMessage;
+import com.storyengine.narrative.SpeakerInfo;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Style;
 import net.minecraft.network.chat.TextColor;
 import net.minecraft.resources.ResourceLocation;
@@ -21,6 +23,8 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
 import java.util.List;
+import java.util.ArrayList;
+import java.util.Optional;
 
 /**
  * Рендерит текущее сообщение сюжетного чата по центру-низу экрана
@@ -82,23 +86,43 @@ public final class NarrativeOverlay {
         int screenWidth = window.getGuiScaledWidth();
         int screenHeight = window.getGuiScaledHeight();
 
-        ResourceLocation icon = DynamicHeadManager.getOrLoad(message.getIconId());
-        String rawSpeaker = message.getSpeaker() == null ? "" : message.getSpeaker().trim();
-        boolean hasSpeaker = !rawSpeaker.isEmpty();
-        int iconAreaWidth = icon != null ? ICON_SIZE + ICON_GAP : 0;
+        List<String> icons = new ArrayList<>();
+        int iconAreaWidth = 0;
+        for (SpeakerInfo speaker : message.getSpeakers()) {
+            icons.add(speaker.iconId());
+            // Зазор добавляется только между иконками: раньше он добавлялся и после
+            // последней, из-за чего имя спикера уезжало вправо на ICON_GAP лишних px.
+            if (iconAreaWidth > 0) {
+                iconAreaWidth += ICON_GAP;
+            }
+            iconAreaWidth += ICON_SIZE;
+        }
 
         Component fullText = message.getText();
         List<FormattedCharSequence> fullLines = font.split(fullText, TEXT_WRAP_WIDTH);
 
-        Component speakerComponent = null;
+        MutableComponent speakerComponent = null;
         int nameWidth = 0;
+        boolean hasSpeaker = message.getSpeakers().stream()
+                .anyMatch(speaker -> speaker.name() != null && !speaker.name().trim().isEmpty());
         if (hasSpeaker) {
-            Style nameStyle = Style.EMPTY.withColor(TextColor.fromRgb(message.getNameColor()));
             Style textStyle = Style.EMPTY.withColor(TextColor.fromRgb(TEXT_COLOR));
-            speakerComponent = Component.literal("[" + rawSpeaker + "]")
-                    .withStyle(nameStyle)
+            speakerComponent = Component.literal("[");
+            for (int i = 0; i < message.getSpeakers().size(); i++) {
+                SpeakerInfo speaker = message.getSpeakers().get(i);
+                String name = speaker.name() == null ? "" : speaker.name().trim();
+                if (i > 0) {
+                    speakerComponent = speakerComponent.append(Component.literal(", ").withStyle(textStyle));
+                }
+                Style nameStyle = Style.EMPTY.withColor(TextColor.fromRgb(speaker.nameColor()));
+                speakerComponent = speakerComponent.append(Component.literal(name).withStyle(nameStyle));
+            }
+            speakerComponent = speakerComponent
+                    .append(Component.literal("]").withStyle(Style.EMPTY.withColor(TextColor.fromRgb(message.getSpeakers().get(0).nameColor()))))
                     .append(Component.literal(":").withStyle(textStyle));
-            nameWidth = font.width(speakerComponent);
+            if (hasSpeaker) {
+                nameWidth = font.width(speakerComponent);
+            }
         }
 
         int textContentWidth = 0;
@@ -126,7 +150,7 @@ public final class NarrativeOverlay {
 
         // Реальная высота блока текста (высота строки майна 9px + интервалы)
         int textHeight = (fullLines.size() - 1) * LINE_HEIGHT + 9;
-        int contentHeight = Math.max(icon != null ? ICON_SIZE : 0, textHeight);
+        int contentHeight = Math.max(!icons.isEmpty() ? ICON_SIZE : 0, textHeight);
 
         int boxHeight = contentHeight + PADDING * 2;
         int boxTop = (screenHeight - 60) - boxHeight;
@@ -143,11 +167,14 @@ public final class NarrativeOverlay {
         // 1. Отрисовка подложки
         TextureBlitHelper.fillBox(poseStack, boxLeft, boxTop, boxLeft + boxWidth, boxBottom, BACKGROUND_COLOR);
 
-        // 2. Отрисовка иконки (по центру Y)
-        if (icon != null) {
+        // 2. Отрисовка иконок (по центру Y)
+        if (!icons.isEmpty()) {
             RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
-            RenderSystem.setShaderTexture(0, icon);
-            TextureBlitHelper.blitFull(poseStack, boxLeft + PADDING, iconTop, ICON_SIZE, ICON_SIZE);
+            int iconX = boxLeft + PADDING;
+            for (String iconId : icons) {
+                DynamicHeadManager.blitIcon(poseStack, iconId, iconX, iconTop, ICON_SIZE);
+                iconX += ICON_SIZE + ICON_GAP;
+            }
         }
 
         // 3. Отрисовка имени ([Name]: — двоеточие в цвете текста, по первой строке)
@@ -167,12 +194,41 @@ public final class NarrativeOverlay {
         }
     }
 
+    /**
+     * Строит текст, видимый на текущем шаге эффекта печатной машинки.
+     *
+     * Раньше здесь было full.getString().substring(0, visible) + setStyle(root),
+     * что давало два бага:
+     *  1) getString() "выравнивает" все вложенные компоненты в одну строку, поэтому
+     *     индивидуальные стили (цвета реплик NPC, начертания) терялись - оставался
+     *     только стиль корня. Сейчас обходим дерево через visit(), который
+     *     отдаёт уже разрешённый стиль для каждого куска.
+     *  2) substring() мог разрезать сурогатную пару (эмодзи) пополам, из-за чего
+     *     последний символ мигал квадратом. Теперь не отдаём high-surrogate
+     *     без пары - символ просто появится на следующем шаге.
+     */
     private static Component buildVisibleText(Component full) {
         if (NarrativeChatManager.isFullyRevealed()) {
             return full;
         }
-        String plain = full.getString();
-        int visible = Math.min(NarrativeChatManager.getVisibleCharCount(), plain.length());
-        return Component.literal(plain.substring(0, visible)).setStyle(full.getStyle());
+        int[] budget = {NarrativeChatManager.getVisibleCharCount()};
+        MutableComponent result = Component.empty();
+        full.visit((style, text) -> {
+            if (budget[0] <= 0 || text.isEmpty()) {
+                return Optional.empty();
+            }
+            int take = Math.min(budget[0], text.length());
+            if (take < text.length() && Character.isHighSurrogate(text.charAt(take - 1))) {
+                take--;
+            }
+            if (take <= 0) {
+                return Optional.empty();
+            }
+            budget[0] -= take;
+            result.append(Component.literal(text.substring(0, take)).setStyle(style));
+            // Бюджет исчерпан - visit() останавливается, вернув "остаток" текста.
+            return budget[0] > 0 ? Optional.empty() : Optional.of(text.substring(take));
+        }, Style.EMPTY);
+        return result;
     }
 }
