@@ -33,6 +33,12 @@ public class NarrativeLogScreen extends Screen {
     private static final int FOOTER_H = 26;
     private static final int SCROLLBAR_W = 4;
 
+    /**
+     * Толщина неизменяемого края для 9-slice полос шапки/подвала. 12 px
+     * достаточно, чтобы сохранить скругления и боковые засечки полосы.
+     */
+    private static final int BAR_NINE_SLICE_BORDER = 12;
+
     private static final int ICON_SIZE = 20;
     private static final int ROW_GAP = 10;
     private static final int LINE_HEIGHT = 10;
@@ -76,8 +82,14 @@ public class NarrativeLogScreen extends Screen {
 
     @Override
     protected void init() {
+        // super.init() не вызывается намеренно (виджетов нет), но resize/re-init
+        // вызывает init() повторно, и без проверки анимация появления
+        // перезапускалась бы при каждом изменении размера окна.
+        boolean firstInit = this.openedAt == 0L;
         this.scrollOffset = 0;
-        this.openedAt = Util.getMillis();
+        if (firstInit) {
+            this.openedAt = Util.getMillis();
+        }
     }
 
     @Override
@@ -163,6 +175,7 @@ public class NarrativeLogScreen extends Screen {
 
     private void drawHeader(PoseStack poseStack, float alpha) {
         drawBar(poseStack, "narrative_header", winX, winY, winW, HEADER_H, MenuCustomizationConfig.logHeaderFill(), alpha);
+        drawAccentLine(poseStack, winX, winY + HEADER_H - 1, winW, alpha);
 
         String title = "Сюжетный чат";
         int tx = winX + (winW - this.font.width(title)) / 2;
@@ -174,22 +187,41 @@ public class NarrativeLogScreen extends Screen {
     private void drawFooter(PoseStack poseStack, float alpha) {
         int fy = winY + winH - FOOTER_H;
         drawBar(poseStack, "narrative_footer", winX, fy, winW, FOOTER_H, MenuCustomizationConfig.logFooterFill(), alpha);
+        drawAccentLine(poseStack, winX, fy, winW, alpha);
 
         String hint = "Колесо мыши — прокрутка";
         int hx = winX + (winW - this.font.width(hint)) / 2;
         this.font.drawShadow(poseStack, hint, hx, fy + (FOOTER_H - 9) / 2, fade(MenuCustomizationConfig.logHintColor(), alpha));
     }
 
-    /** Рисует горизонтальный бар (шапку/подвал) из кастомизируемой текстуры, растянутой на весь прямоугольник. */
+    /**
+     * Тонкая акцентная линия по границе шапки/подвала. Настройка
+     * log.accentLine была объявлена в конфиге, но нигде не использовалась -
+     * пользователь менял цвет и ничего не происходило.
+     */
+    private void drawAccentLine(PoseStack poseStack, int x, int y, int w, float alpha) {
+        int color = MenuCustomizationConfig.logAccentLine();
+        if (color <= 0 || w <= 0) {
+            return;
+        }
+        TextureBlitHelper.fillBox(poseStack, x, y, x + w, y + 1, fade(color, alpha));
+    }
+
+    /**
+     * Рисует горизонтальный бар (шапку/подвал) окна истории.
+     *
+     * Спрайт бара - полоса фиксированной высоты (360x30 / 360x26), которая
+     * растягивается на адаптивную ширину окна (примерно 320..760 px). Раньше
+     * здесь был прямой stretch всего спрайта, из-за чего боковые элементы и
+     * скруглённые углы панели размазывались по всей ширине окна. Теперь это
+     * 9-slice: углы и вертикальные рёбра 1:1, тянется только середина.
+     */
     private void drawBar(PoseStack poseStack, String texId, int x, int y, int w, int h, int baseColor, float alpha) {
         // Цвет-подложка на случай, если кастомная текстура прозрачная.
         TextureBlitHelper.fillBox(poseStack, x, y, x + w, y + h, fade(baseColor, alpha));
 
-        ResourceLocation tex = MenuAssetsManager.get(texId);
         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, alpha);
-        RenderSystem.setShaderTexture(0, tex);
-        int[] reg = MenuAssetsManager.getRegion(texId);
-        this.blit(poseStack, x, y, w, h, reg[0], reg[1], reg[2], reg[3], MenuAssetsManager.ATLAS_W, MenuAssetsManager.ATLAS_H);
+        MenuAssetsManager.blitNineSlice(poseStack, texId, x, y, w, h, BAR_NINE_SLICE_BORDER);
         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
     }
 
@@ -247,18 +279,14 @@ public class NarrativeLogScreen extends Screen {
     }
 
     private void drawEntry(PoseStack poseStack, NarrativeMessage message, int y, int textAreaWidth, float alpha) {
-        ResourceLocation icon = DynamicHeadManager.getOrLoad(message.getIconId());
         String speaker = message.getSpeaker() == null ? "" : message.getSpeaker();
 
         List<FormattedCharSequence> lines = this.font.split(message.getText(), textAreaWidth);
 
         int x = feedLeft;
-        if (icon != null) {
-            RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, alpha);
-            RenderSystem.setShaderTexture(0, icon);
-            TextureBlitHelper.blitFull(poseStack, x, y, ICON_SIZE, ICON_SIZE);
-            RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
-        }
+        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, alpha);
+        DynamicHeadManager.blitIcon(poseStack, message.getIconId(), x, y, ICON_SIZE);
+        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
 
         int textX = x + ICON_SIZE + 8;
         int lineY = y;

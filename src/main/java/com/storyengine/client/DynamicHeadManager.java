@@ -1,6 +1,7 @@
 package com.storyengine.client;
 
 import com.mojang.blaze3d.platform.NativeImage;
+import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.logging.LogUtils;
 import com.storyengine.StoryEngineMod;
 import com.storyengine.client.MenuAssetsManager;
@@ -32,19 +33,56 @@ public final class DynamicHeadManager {
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
+    /** id ассета текстуры-заглушки, используемой при отсутствии иконки NPC. */
+    private static final String DEFAULT_ASSET = "default_head";
+
     /**
      * Текстура-заглушка по умолчанию. Берётся через MenuAssetsManager, поэтому
      * при включённой кастомизации подхватывается пользовательский
      * config/story_engine/menu/default_head.png.
      */
     public static ResourceLocation defaultIcon() {
-        return MenuAssetsManager.get("default_head");
+        return MenuAssetsManager.get(DEFAULT_ASSET);
     }
 
     private static final Map<String, ResourceLocation> LOADED = new HashMap<>();
+    private static final Map<String, int[]> SIZES = new HashMap<>();
     private static final Set<String> MISSING = new HashSet<>();
 
     private DynamicHeadManager() {
+    }
+
+    /**
+     * Рисует иконку NPC квадратом size x size с центровкой по короткой оси
+     * (aspect fill). Раньше здесь был blitFull(), который брал UV 0..1 и
+     * растягивал непропорциональный PNG на квадрат - голова 418x394
+     * становилась чуть шире, чем нужно, а нестандартные иконки вытягивались
+     * заметно сильнее.
+     *
+     * @return false, если иконку не удалось получить (тогда ничего не рисуется).
+     */
+    public static boolean blitIcon(PoseStack poseStack, String iconId, int x, int y, int size) {
+        ResourceLocation icon = getOrLoad(iconId);
+        if (icon == null) {
+            return false;
+        }
+        int[] texSize = sizeOf(iconId);
+        if (texSize == null) {
+            // Размер неизвестен (иконка ещё не грузилась) - рисуем как есть.
+            TextureBlitHelper.blitFull(poseStack, x, y, size, size);
+            return true;
+        }
+        TextureBlitHelper.blitCover(poseStack, icon, texSize[0], texSize[1], x, y, size);
+        return true;
+    }
+
+    /** Размер загруженной текстуры иконки {ширина,высота}; null, если неизвестен. */
+    public static int[] sizeOf(String iconId) {
+        if (iconId == null || iconId.isBlank() || "none".equalsIgnoreCase(iconId)) {
+            return MenuAssetsManager.sizeOf(DEFAULT_ASSET);
+        }
+        int[] size = SIZES.get(iconId.toLowerCase(Locale.ROOT));
+        return size != null ? size : MenuAssetsManager.sizeOf(DEFAULT_ASSET);
     }
 
     /**
@@ -85,10 +123,12 @@ public final class DynamicHeadManager {
 
         try (InputStream stream = Files.newInputStream(file)) {
             NativeImage image = NativeImage.read(stream);
+            int[] size = {image.getWidth(), image.getHeight()};
             DynamicTexture texture = new DynamicTexture(image);
             ResourceLocation location = new ResourceLocation(StoryEngineMod.MOD_ID, "heads/" + key);
             Minecraft.getInstance().getTextureManager().register(location, texture);
             LOADED.put(key, location);
+            SIZES.put(key, size);
             return location;
         } catch (IOException | RuntimeException e) {
             LOGGER.error("[StoryEngine] Не удалось загрузить иконку '{}' из {}", key, file, e);
@@ -110,6 +150,7 @@ public final class DynamicHeadManager {
     /** Сбрасывает кэш - на случай, если иконки заменили на диске без перезапуска клиента. */
     public static void clearCache() {
         LOADED.clear();
+        SIZES.clear();
         MISSING.clear();
     }
 }

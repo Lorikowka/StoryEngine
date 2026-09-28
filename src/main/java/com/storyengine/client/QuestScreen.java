@@ -83,6 +83,10 @@ public class QuestScreen extends Screen {
     private static final int TAB_W = 150;
     private static final int TAB_GAP = 8;
     private static final int TAB_ICON_SIZE = 12;
+    /** Толщина неизменяемого края (9-slice) для спрайтов вкладок и строк списка. */
+    private static final int TAB_NINE_SLICE_BORDER = 8;
+    private static final int ROW_NINE_SLICE_BORDER = 6;
+    private static final int PLATE_NINE_SLICE_BORDER = 6;
 
     // Анимации.
     private static final long ANIM_DURATION_MS = 400;
@@ -242,22 +246,22 @@ public class QuestScreen extends Screen {
         QuestTab[] tabs = QuestTab.values();
         for (int i = 0; i < tabs.length; i++) {
             QuestTab tab = tabs[i];
-            AnimState anim = computeAnim(elapsed, i, TAB_ANIM_STAGGER_MS, TAB_ANIM_SLIDE_PX);
+            AnimState anim = computeAnim(elapsed, i, TAB_ANIM_STAGGER_MS, TAB_ANIM_SLIDE_PX, tabs.length);
             int x = tabX + i * (TAB_W + TAB_GAP);
             int y = tabY - anim.offsetY;
             boolean hovered = mouseX >= x && mouseX <= x + TAB_W && mouseY >= y && mouseY <= y + TAB_H;
 
             RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, anim.alpha);
-            RenderSystem.setShaderTexture(0, MenuAssetsManager.get("quest_widgets"));
+            // 9-slice: спрайт вкладки 80x24, а вкладка на экране 150x24. Прямой
+            // stretch размазывал скруглённые углы в 1.9 раза, поэтому тянем только
+            // середину, а углы/рёбра рисуем 1:1.
             int u = tab == currentTab ? 160 : (hovered ? 80 : 0);
-            blit(poseStack, x, y, TAB_W, TAB_H, u, 20, 80, 24, TEXTURE_SIZE, TEXTURE_SIZE);
+            blitWidget(poseStack, x, y, TAB_W, TAB_H, u, 20, 80, 24, TAB_NINE_SLICE_BORDER);
 
-            // Иконка статуса слева от подписи (из атласа gui_atlas.png).
+            // Иконка статуса слева от подписи (весь спрайт 32x32 из gui_atlas.png).
             String iconId = tab.iconId();
-            RenderSystem.setShaderTexture(0, MenuAssetsManager.get(iconId));
-            int[] reg = MenuAssetsManager.getRegion(iconId);
-            blit(poseStack, x + 10, y + (TAB_H - TAB_ICON_SIZE) / 2, TAB_ICON_SIZE, TAB_ICON_SIZE,
-                    reg[0], reg[1], reg[2], reg[3], MenuAssetsManager.ATLAS_W, MenuAssetsManager.ATLAS_H);
+            MenuAssetsManager.blit(poseStack, iconId,
+                    x + 10, y + (TAB_H - TAB_ICON_SIZE) / 2, TAB_ICON_SIZE, TAB_ICON_SIZE);
 
             int textColor = tab == currentTab ? MenuCustomizationConfig.accent()
                     : (hovered ? MenuCustomizationConfig.tabHover() : MenuCustomizationConfig.tabIdle());
@@ -293,7 +297,8 @@ public class QuestScreen extends Screen {
             }
 
             int staggerIndex = Math.min(i, LIST_ANIM_STAGGER_CAP);
-            AnimState anim = computeAnim(elapsed, staggerIndex, LIST_ANIM_STAGGER_MS, LIST_ANIM_SLIDE_PX);
+            AnimState anim = computeAnim(elapsed, staggerIndex,
+                    LIST_ANIM_STAGGER_MS, LIST_ANIM_SLIDE_PX, LIST_ANIM_STAGGER_CAP);
             int animatedY = rowY - anim.offsetY;
 
             boolean selected = selectedQuest != null && Objects.equals(selectedQuest.getId(), quest.getId());
@@ -302,9 +307,11 @@ public class QuestScreen extends Screen {
                     && mouseY >= rowY && mouseY <= rowY + ROW_HEIGHT - 2;
 
             RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, anim.alpha);
-            RenderSystem.setShaderTexture(0, MenuAssetsManager.get("quest_widgets"));
+            // 9-slice: спрайт строки 32x22 растягивается до ширины списка (~162px),
+            // то есть в 5 раз. Рамка и скругления остаются 1:1, тянется середина.
             int u = selected ? 64 : (hovered ? 32 : 0);
-            blit(poseStack, x + 2, animatedY, LIST_W - 4, ROW_HEIGHT - 2, u, 44, 32, 22, TEXTURE_SIZE, TEXTURE_SIZE);
+            blitWidget(poseStack, x + 2, animatedY, LIST_W - 4, ROW_HEIGHT - 2,
+                    u, 44, 32, 22, ROW_NINE_SLICE_BORDER);
 
             int textColor = withAlpha(MenuCustomizationConfig.textPrimary(), anim.alpha);
             int authorColor = withAlpha(MenuCustomizationConfig.textAuthor(), anim.alpha);
@@ -345,9 +352,7 @@ public class QuestScreen extends Screen {
         int blockX = dx + (dw - blockW) / 2;
         int titleY = dy - 2;
 
-        RenderSystem.setShaderTexture(0, MenuAssetsManager.get("quest_icon"));
-        int[] reg = MenuAssetsManager.getRegion("quest_icon");
-        blit(poseStack, blockX, titleY + 1, iconSize, iconSize, reg[0], reg[1], reg[2], reg[3], MenuAssetsManager.ATLAS_W, MenuAssetsManager.ATLAS_H);
+        MenuAssetsManager.blit(poseStack, "quest_icon", blockX, titleY + 1, iconSize, iconSize);
 
         poseStack.pushPose();
         poseStack.translate(blockX + iconSize + 6, titleY + 2, 0);
@@ -741,15 +746,30 @@ public class QuestScreen extends Screen {
     /**
      * Каскадная анимация появления: альфа от ANIM_MIN_ALPHA до 1 и сдвиг
      * снизу вверх на slidePx, с задержкой index * staggerMs. Индекс выше
-     * капа анимируется без дополнительной задержки.
+     * staggerCap анимируется без дополнительной задержки.
+     *
+     * Кап передаётся параметром: раньше здесь жёстко стоял LIST_ANIM_STAGGER_CAP,
+     * и вкладки с собственным (более коротким) каскадом не могли его настроить.
      */
-    private static AnimState computeAnim(long elapsedMs, int index, long staggerMs, int slidePx) {
-        long delayed = elapsedMs - (long) Math.min(index, LIST_ANIM_STAGGER_CAP) * staggerMs;
+    private static AnimState computeAnim(long elapsedMs, int index, long staggerMs, int slidePx, int staggerCap) {
+        long delayed = elapsedMs - (long) Math.min(index, staggerCap) * staggerMs;
         float t = delayed <= 0 ? 0.0F : Math.min(1.0F, (float) delayed / ANIM_DURATION_MS);
         float eased = easeOutCubic(t);
         float alpha = ANIM_MIN_ALPHA + (1.0F - ANIM_MIN_ALPHA) * eased;
         int offsetY = Math.round((1.0F - eased) * slidePx);
         return new AnimState(alpha, offsetY);
+    }
+
+    /**
+     * 9-slice для спрайтов quest_widgets.png: рамка и скруглённые углы рисуются
+     * 1:1, растягивается только середина. Нужен там, где ширина элемента
+     * зависит от вкладки/списка (150px вкладка из спрайта 80px, строка ~162px
+     * из спрайта 32px) - иначе углы превращаются в вытянутые овалы.
+     */
+    private static void blitWidget(PoseStack poseStack, int x, int y, int w, int h,
+                                   int u, int v, int spriteW, int spriteH, int border) {
+        TextureBlitHelper.blitNineSlice(poseStack, MenuAssetsManager.get("quest_widgets"),
+                x, y, w, h, u, v, spriteW, spriteH, border, TEXTURE_SIZE, TEXTURE_SIZE);
     }
 
     private static final class AnimState {
@@ -840,9 +860,17 @@ public class QuestScreen extends Screen {
             }
 
             RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
-            RenderSystem.setShaderTexture(0, MenuAssetsManager.get("quest_widgets"));
-            blit(poseStack, this.x, this.y, this.width, this.height,
-                    u, v, stateWidth, stateHeight, TEXTURE_SIZE, TEXTURE_SIZE);
+            if (this.width == stateWidth && this.height == stateHeight) {
+                // Равномерный масштаб (кнопка закрытия) - просто blit спрайта.
+                RenderSystem.setShaderTexture(0, MenuAssetsManager.get("quest_widgets"));
+                blit(poseStack, this.x, this.y, this.width, this.height,
+                        u, v, stateWidth, stateHeight, TEXTURE_SIZE, TEXTURE_SIZE);
+            } else {
+                // Разные пропорции - 9-slice, иначе рамка растянется по осям отдельно
+                // и скруглённые углы превратятся в овалы.
+                blitWidget(poseStack, this.x, this.y, this.width, this.height,
+                        u, v, stateWidth, stateHeight, PLATE_NINE_SLICE_BORDER);
+            }
 
             if (!this.getMessage().getString().isEmpty()) {
                 int color = selected ? MenuCustomizationConfig.accent()

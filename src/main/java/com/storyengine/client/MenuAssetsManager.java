@@ -1,6 +1,7 @@
 package com.storyengine.client;
 
 import com.mojang.blaze3d.platform.NativeImage;
+import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.logging.LogUtils;
 import com.storyengine.StoryEngineMod;
 import net.minecraft.client.Minecraft;
@@ -73,6 +74,46 @@ public final class MenuAssetsManager {
     public static final int ATLAS_H = 124;
 
     /**
+     * Ожидаемые размеры индивидуальных текстур: id -> {ширина, высота}.
+     * Раскладка регионов в коде (см. DIALOGUE_REGIONS, QuestScreen, InteractionHintHud)
+     * задана в пикселях именно для этих размеров, поэтому кастомный файл другого
+     * размера нельзя принимать - иначе UV-регионы уезжают за пределы текстуры и
+     * на экране появляются «куски соседних спрайтов». Такой файл отбрасывается
+     * с предупреждением, а отрисовка идёт по встроенной текстуре.
+     */
+    private static final Map<String, int[]> EXPECTED_SIZES = new HashMap<>();
+
+    /**
+     * Размеры встроенных индивидуальных текстур. Для region-based ассетов они
+     * совпадают с EXPECTED_SIZES (проверяются при загрузке), а для аватаров
+     * default_head произвольный размер допустим - он рисуется по центру-обрезке,
+     * поэтому здесь только справочное значение для встроенной заглушки.
+     */
+    private static final Map<String, int[]> BUILTIN_SIZES = new HashMap<>();
+
+    static {
+        EXPECTED_SIZES.put("quest_menu", new int[]{520, 340});
+        EXPECTED_SIZES.put("quest_widgets", new int[]{256, 256});
+        EXPECTED_SIZES.put("interaction_hint", new int[]{64, 32});
+        EXPECTED_SIZES.put("dialogue_box", new int[]{160, 32});
+        BUILTIN_SIZES.put("default_head", new int[]{418, 394});
+    }
+
+    /**
+     * Размер текстуры индивидуального ассета {ширина,высота}: фактический, если
+     * кастомный файл загружен, иначе размер встроенной текстуры. null для
+     * атласных и неизвестных id.
+     */
+    public static int[] sizeOf(String assetId) {
+        int[] loaded = SIZES.get(assetId);
+        if (loaded != null) {
+            return loaded;
+        }
+        int[] expected = EXPECTED_SIZES.get(assetId);
+        return expected != null ? expected : BUILTIN_SIZES.get(assetId);
+    }
+
+    /**
      * Фреймы текстурной карты диалогового окна dialogue_box.png: id -> {u, v, w, h}.
      * Карта 160x32, каждый фрейм 32x32 (9-patch: рамка 6px, скруглённые углы).
      */
@@ -107,8 +148,17 @@ public final class MenuAssetsManager {
     );
 
     private static final Map<String, ResourceLocation> LOADED = new HashMap<>();
+    private static final Map<String, int[]> SIZES = new HashMap<>();
     private static final Set<String> MISSING = new HashSet<>();
     private static ResourceLocation atlasLocation = null;
+
+    /**
+     * Заглушка на случай неизвестного assetId - ванильная "missing texture",
+     * чтобы вызывающий код получал непустую локацию и просто ничего не рисовал
+     * (все texture-blit хелперы умеют корректно работать с ванильной текстурой).
+     */
+    private static final ResourceLocation MISSING_TEXTURE =
+            new ResourceLocation(StoryEngineMod.MOD_ID, "textures/gui/quest_menu.png");
 
     private MenuAssetsManager() {
     }
@@ -122,7 +172,38 @@ public final class MenuAssetsManager {
         return ATLAS_REGIONS.get(id);
     }
 
-    /** Возвращает фрейм {u, v, w, h} диалоговой текстурной карты (9-patch), либо null. */
+    /**
+     * Рисует регион атласного ассета (см. ATLAS_REGIONS) в прямоугольник
+     * (x,y,width,height), растягивая его. Это единственная разрешённая точка
+     * входа для атласных спрайтов: она сама биндит текстуру, обрезает регион по
+     * границам атласа и молчит на неизвестном id вместо NPE/мусора.
+     */
+    public static void blit(PoseStack poseStack, String id, int x, int y, int width, int height) {
+        int[] reg = ATLAS_REGIONS.get(id);
+        if (reg == null) {
+            LOGGER.warn("[StoryEngine] blit: неизвестный атласный ассет '{}'", id);
+            return;
+        }
+        TextureBlitHelper.blitRegion(poseStack, get(id), x, y, width, height,
+                reg[0], reg[1], reg[2], reg[3], ATLAS_W, ATLAS_H);
+    }
+
+    /**
+     * То же, что blit(...), но 9-slice: спрайт не растягивается целиком, рамка и
+     * скруглённые углы остаются 1:1, тянется только середина. Нужно для панелей,
+     * ширина которых зависит от окна/контента (шапка и подвал окна истории чата).
+     */
+    public static void blitNineSlice(PoseStack poseStack, String id, int x, int y, int width, int height, int border) {
+        int[] reg = ATLAS_REGIONS.get(id);
+        if (reg == null) {
+            LOGGER.warn("[StoryEngine] blitNineSlice: неизвестный атласный ассет '{}'", id);
+            return;
+        }
+        TextureBlitHelper.blitNineSlice(poseStack, get(id), x, y, width, height,
+                reg[0], reg[1], reg[2], reg[3], border, ATLAS_W, ATLAS_H);
+    }
+
+    /** Возвращает регион {u, v, w, h} диалоговой текстурной карты (9-patch), либо null. */
     public static int[] getDialogueRegion(String id) {
         return DIALOGUE_REGIONS.get(id);
     }
@@ -132,8 +213,12 @@ public final class MenuAssetsManager {
      * - атласные ассеты -> локация gui_atlas.png (регион через getRegion);
      * - индивидуальные ассеты:
      *     если кастомизация выключена -> встроенная;
-     *     если в config/story_engine/menu/&lt;id&gt;.png есть валидный файл -> DynamicTexture;
+     *     если в config/story_engine/menu/&lt;id&gt;.png есть валидный файл нужного
+     *     размера (см. EXPECTED_SIZES) -> DynamicTexture;
      *     иначе -> встроенная (результат кэшируется в MISSING).
+     *
+     * Метод никогда не возвращает null для известных id: иначе вызывающий код
+     * падал бы с NPE вместо того, чтобы отрисовать встроенный вариант.
      */
     public static ResourceLocation get(String assetId) {
         if (ATLAS_IDS.contains(assetId)) {
@@ -144,7 +229,7 @@ public final class MenuAssetsManager {
         ResourceLocation fallback = DEFAULTS.get(assetId);
         if (fallback == null) {
             LOGGER.warn("[StoryEngine] Неизвестный asset меню: {}", assetId);
-            return fallback;
+            return MISSING_TEXTURE;
         }
         if (!MenuCustomizationConfig.enabled()) {
             return fallback;
@@ -166,10 +251,24 @@ public final class MenuAssetsManager {
 
         try (InputStream stream = Files.newInputStream(file)) {
             NativeImage image = NativeImage.read(stream);
+            int actualW = image.getWidth();
+            int actualH = image.getHeight();
+            int[] expected = EXPECTED_SIZES.get(assetId);
+            if (expected != null && (actualW != expected[0] || actualH != expected[1])) {
+                // Раскладка регионов в коде привязана к этим размерам, поэтому файл
+                // другого размера приводил бы к отрисовке чужих частей текстуры.
+                image.close();
+                LOGGER.warn("[StoryEngine] {} имеет размер {}x{}, ожидается {}x{} - " +
+                                "используем встроенную текстуру",
+                        file, actualW, actualH, expected[0], expected[1]);
+                MISSING.add(assetId);
+                return fallback;
+            }
             DynamicTexture texture = new DynamicTexture(image);
             ResourceLocation location = new ResourceLocation(StoryEngineMod.MOD_ID, "menu_custom/" + assetId);
             Minecraft.getInstance().getTextureManager().register(location, texture);
             LOADED.put(assetId, location);
+            SIZES.put(assetId, new int[]{actualW, actualH});
             return location;
         } catch (IOException | RuntimeException e) {
             LOGGER.error("[StoryEngine] Не удалось загрузить текстуру меню '{}' из {}", assetId, file, e);
@@ -186,8 +285,9 @@ public final class MenuAssetsManager {
         if (MenuCustomizationConfig.enabled()) {
             Path file = getMenuDirectory().resolve("gui_atlas.png");
             if (Files.isRegularFile(file)) {
+                NativeImage img = null;
                 try (InputStream stream = Files.newInputStream(file)) {
-                    NativeImage img = NativeImage.read(stream);
+                    img = NativeImage.read(stream);
                     if (img.getWidth() == ATLAS_W && img.getHeight() == ATLAS_H) {
                         atlasLocation = registerAtlas(img);
                         return;
@@ -196,6 +296,11 @@ public final class MenuAssetsManager {
                             img.getWidth(), img.getHeight(), ATLAS_W, ATLAS_H);
                 } catch (IOException | RuntimeException e) {
                     LOGGER.error("[StoryEngine] gui_atlas.png повреждён, используем встроенный атлас", e);
+                }
+                if (img != null) {
+                    // Незарегистрированный NativeImage держит DirectByteBuffer -
+                    // без close() он утекает до GC каждый запуск клиента.
+                    img.close();
                 }
             }
         }
@@ -248,13 +353,18 @@ public final class MenuAssetsManager {
     }
 
     private static NativeImage loadEmbedded(ResourceLocation loc) {
+        // NativeImage.read() сам закрывает переданный ему поток, но оборачивать
+        // в try-with-resources всё равно правильно - если open() отдаст ресурс,
+        // то он будет закрыт даже при исключении на любом шаге дальше.
         try {
             Optional<Resource> res = Minecraft.getInstance().getResourceManager().getResource(loc);
             if (res.isEmpty()) {
                 LOGGER.warn("[StoryEngine] Встроенная текстура не найдена: {}", loc);
                 return null;
             }
-            return NativeImage.read(res.get().open());
+            try (InputStream stream = res.get().open()) {
+                return NativeImage.read(stream);
+            }
         } catch (IOException | RuntimeException e) {
             LOGGER.error("[StoryEngine] Не удалось прочитать встроенную текстуру {}", loc, e);
             return null;
@@ -265,10 +375,12 @@ public final class MenuAssetsManager {
     private static void drawInto(NativeImage dst, NativeImage src, int dx, int dy, int dw, int dh) {
         int sw = src.getWidth();
         int sh = src.getHeight();
-        for (int y = 0; y < dh; y++) {
-            int sy = sh > 0 ? (y * sh) / dh : 0;
-            for (int x = 0; x < dw; x++) {
-                int sx = sw > 0 ? (x * sw) / dw : 0;
+        int maxX = Math.min(dw, dst.getWidth() - dx);
+        int maxY = Math.min(dh, dst.getHeight() - dy);
+        for (int y = 0; y < maxY; y++) {
+            int sy = sh > 0 ? Math.min(sh - 1, (y * sh) / Math.max(1, dh)) : 0;
+            for (int x = 0; x < maxX; x++) {
+                int sx = sw > 0 ? Math.min(sw - 1, (x * sw) / Math.max(1, dw)) : 0;
                 dst.setPixelRGBA(dx + x, dy + y, src.getPixelRGBA(sx, sy));
             }
         }
@@ -322,6 +434,7 @@ public final class MenuAssetsManager {
     /** Сбрасывает кэш - чтобы изменения на диске/в конфиге подхватились без перезапуска клиента. */
     public static void clearCache() {
         LOADED.clear();
+        SIZES.clear();
         MISSING.clear();
         atlasLocation = null;
     }
