@@ -48,7 +48,7 @@ public class StoryEngineMod {
      */
     public static final TriggerManager TRIGGER_MANAGER = new TriggerManager();
 
-public StoryEngineMod() {
+    public StoryEngineMod() {
         TriggerActions.registerAll();
         QuestNetworking.register();
         NarrativeNetworking.register();

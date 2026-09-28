@@ -25,8 +25,17 @@ import java.util.List;
  * от {@link TriggerManager#byEvent} уже отсортирован.
  *
  * При {@code cancel_vanilla: true} ванильное взаимодействие с сущностью
- * (например, седло/поводок/открытие сундука-вьючера) отменяется через
- * {@code PlayerInteractEvent.EntityInteract}.
+ * (например, одевание/снятие брони с armor stand) отменяется через
+ * {@code PlayerInteractEvent.EntityInteractSpecific}.
+ * <p>
+ * Используется именно {@code EntityInteractSpecific}, а не {@code EntityInteract}:
+ * клик по сущности клиент отправляет как «interactAt» (с позициией), поэтому на
+ * сервере стреляет только {@code EntityInteractSpecific}; ванильный {@code EntityInteract}
+ * (без позиции) доходит лишь когда {@code interactAt} вернул не-консьюмерный результат
+ * (обычные мобы без специальной реакции). У armor stand {@code interactAt} всегда
+ * консьюмит на клиенте, поэтому слушать один только {@code EntityInteract} = триггер
+ * никогда не сработает по armor stand. Слушать оба события нельзя — по обычным мобам
+ * они стреляют по очереди в одном клике (двойное срабатывание).
  */
 @Mod.EventBusSubscriber(modid = StoryEngineMod.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public final class EntityInteractionTriggerListener {
@@ -35,7 +44,7 @@ public final class EntityInteractionTriggerListener {
     }
 
     @SubscribeEvent
-    public static void onInteractEntity(PlayerInteractEvent.EntityInteract event) {
+    public static void onInteractEntity(PlayerInteractEvent.EntityInteractSpecific event) {
         if (event.getLevel().isClientSide()) {
             return;
         }
