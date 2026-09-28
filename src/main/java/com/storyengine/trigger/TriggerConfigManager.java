@@ -49,6 +49,9 @@ public final class TriggerConfigManager {
         /** id триггера → файл, из которого он загружен (для команд create/delete/enable). */
         private final Map<String, Path> filesByTrigger = new LinkedHashMap<>();
 
+        /** Файлы, которые не удалось разобрать (политика hot-reload ТЗ §14). */
+        private final List<Path> failedFiles = new ArrayList<>();
+
         public List<TriggerDefinition> definitions() {
             return definitions;
         }
@@ -59,6 +62,10 @@ public final class TriggerConfigManager {
 
         public Map<String, Path> filesByTrigger() {
             return filesByTrigger;
+        }
+
+        public List<Path> failedFiles() {
+            return failedFiles;
         }
 
         public void error(String message) {
@@ -90,6 +97,8 @@ public final class TriggerConfigManager {
             if (def != null) {
                 result.definitions.add(def);
                 result.filesByTrigger.put(def.id(), file);
+            } else {
+                result.failedFiles.add(file);
             }
         }
         return result;
@@ -250,6 +259,20 @@ public final class TriggerConfigManager {
             action.entrySet().stream()
                     .filter(e -> !"type".equals(e.getKey()))
                     .forEach(e -> params.add(e.getKey(), e.getValue()));
+            // Валидируем, что params действительно собираются в экземпляр действия:
+            // битый component JSON / цвет и т.п. отсекаются при загрузке, а не падают
+            // в момент срабатывания триггера (политика hot-reload ТЗ §14 сохранит прежнюю версию).
+            try {
+                if (TriggerActionRegistry.buildAction(type, params) == null) {
+                    LOGGER.error("[StoryEngine] Триггер {}: действие #{} ('{}') сконструировано как null (некорректные params)",
+                            fileName, i, type);
+                    return null;
+                }
+            } catch (RuntimeException e) {
+                LOGGER.error("[StoryEngine] Триггер {}: действие #{} ('{}') некорректно: {}",
+                        fileName, i, type, e.getMessage());
+                return null;
+            }
             result.add(new TriggerActionSpec(type, params));
         }
         return result;

@@ -81,20 +81,52 @@ public final class TriggerManager {
     public void loadAll() {
         lastErrors.clear();
         TriggerConfigManager.LoadResult result = configManager.loadFromDirectory(getTriggersDirectory());
+
+        // Политика hot-reload (ТЗ §14): прежнее состояние нужно, чтобы сохранить
+        // версию триггера, файл которого стал битым, до следующей успешной загрузки.
+        Map<String, TriggerDefinition> prevCache = new HashMap<>(cache);
+        Map<String, Path> prevFiles = new HashMap<>(filesByTrigger);
+
         cache.clear();
         filesByTrigger.clear();
         Map<String, TriggerDefinition> fresh = new HashMap<>();
+        Map<String, Path> freshFiles = new HashMap<>();
         for (TriggerDefinition def : result.definitions()) {
             TriggerDefinition previous = fresh.put(def.id(), def);
             if (previous != null) {
                 LOGGER.warn("[StoryEngine] Дублирующийся id триггера '{}': используется последний файл", def.id());
             }
-            cache.put(def.id(), def);
+            freshFiles.put(def.id(), result.filesByTrigger().get(def.id()));
         }
-        filesByTrigger.putAll(result.filesByTrigger());
+        // Ошибочные файлы: если такой же триггер уже был загружен из этого файла —
+        // сохраняем прежнюю версию «без предупреждения-исчезновения» (ТЗ §14).
+        for (Path broken : result.failedFiles()) {
+            String id = findIdByFile(prevFiles, broken);
+            if (id != null && prevCache.containsKey(id)) {
+                fresh.put(id, prevCache.get(id));
+                freshFiles.put(id, broken);
+                LOGGER.warn("[StoryEngine] Файл {} содержит ошибки, сохранена прежняя версия триггера '{}'",
+                        broken.getFileName(), id);
+            } else {
+                LOGGER.warn("[StoryEngine] Файл {} содержит ошибки, триггер не загружен", broken.getFileName());
+            }
+        }
+        cache.putAll(fresh);
+        filesByTrigger.putAll(freshFiles);
         lastErrors.addAll(result.errors());
         LOGGER.info("[StoryEngine] Загружено триггеров: {}, ошибок: {}", cache.size(), result.errors().size());
         warnConflictingTargetTags();
+    }
+
+    /** Обратный поиск id триггера по пути файла, из которого он был загружен. */
+    @Nullable
+    private String findIdByFile(Map<String, Path> files, Path target) {
+        for (Map.Entry<String, Path> entry : files.entrySet()) {
+            if (entry.getValue() != null && entry.getValue().equals(target)) {
+                return entry.getKey();
+            }
+        }
+        return null;
     }
 
     /** Алиас {@link #loadAll()} для консистентности с QuestManager. */
