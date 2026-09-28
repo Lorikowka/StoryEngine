@@ -1,0 +1,17 @@
+{
+  "text": "Ключ от ворот? Слышал я про этот ключ...",
+  "responses": [
+    {
+      "text": "Расскажи.",
+      "setFlag": "met_elder true",
+      "xp": 10,
+      "next": "helpful"
+    },
+    {
+      "text": "Где он, старик?",
+      "setFlag": "met_elder true",
+      "xp": 10,
+      "next": "helpful"
+    }
+  ]
+}

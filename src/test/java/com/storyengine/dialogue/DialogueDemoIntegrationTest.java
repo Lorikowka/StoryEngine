@@ -4,30 +4,50 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import org.junit.jupiter.api.Test;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.List;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Интеграционная проверка демо-диалога v4_demo, лежащего в
- * run/config/story_engine/dialogues/v4_demo. Гарантирует, что реальные
- * файлы из конфига парсятся моделью и содержат заявленные возможности
+ * src/test/resources/dialogues/v4_demo. Гарантирует, что реальные
+ * файлы контента парсятся моделью и содержат заявленные возможности
  * (условия, команды, выдача, флаги, опыт, storytell, close).
+ *
+ * <p>Фикстуры держатся в ресурсах теста, а не в run/config: папка run
+ * в .gitignore, поэтому чтение оттуда ломало сборку на любом свежем
+ * клоне и в CI.
  */
 class DialogueDemoIntegrationTest {
 
-    private static final Path BASE = Path.of("run", "config", "story_engine", "dialogues", "v4_demo");
+    private static final String BASE = "/dialogues/v4_demo/";
     private final Gson gson = new GsonBuilder().setPrettyPrinting().create();
 
+    private String json(String name) throws Exception {
+        try (InputStream is = getClass().getResourceAsStream(BASE + name + ".json")) {
+            assertNotNull(is, "Нет фикстуры в тестовых ресурсах: " + BASE + name + ".json");
+            try (Reader reader = new InputStreamReader(is, StandardCharsets.UTF_8)) {
+                StringBuilder sb = new StringBuilder();
+                char[] buf = new char[4096];
+                int n;
+                while ((n = reader.read(buf)) > 0) {
+                    sb.append(buf, 0, n);
+                }
+                return sb.toString();
+            }
+        }
+    }
+
     private DialogueNode node(String id) throws Exception {
-        return gson.fromJson(Files.readString(BASE.resolve(id + ".json")), DialogueNode.class);
+        return gson.fromJson(json(id), DialogueNode.class);
     }
 
     @Test
     void demoMetaParses() throws Exception {
-        DialogueMeta meta = gson.fromJson(Files.readString(BASE.resolve("_meta.json")), DialogueMeta.class);
+        DialogueMeta meta = gson.fromJson(json("_meta"), DialogueMeta.class);
         assertEquals("start", meta.getEntry());
         assertEquals("Староста", meta.getSpeaker());
     }

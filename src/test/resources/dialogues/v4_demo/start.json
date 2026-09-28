@@ -1,0 +1,20 @@
+{
+  "text": "Здравствуй, путник. Что привело тебя в наши края?",
+  "responses": [
+    {
+      "text": "Я ищу ключ от ворот.",
+      "next": "knows"
+    },
+    {
+      "text": "§cУходи, старик.",
+      "command": "/say @p Мне не нравишься ты, путник.",
+      "next": "angry"
+    },
+    {
+      "text": "[Убеждение] Помоги деревне.",
+      "if": "quest:village_in_danger:active",
+      "completeTask": "village_in_danger talk_to_elder",
+      "next": "helpful"
+    }
+  ]
+}
