@@ -45,6 +45,9 @@ public final class NarrativeOverlay {
     /** Расстояние между именем и текстом сообщения. */
     private static final int NAME_GAP = 4;
 
+    /** Расстояние между последней иконкой спикера и его именем. */
+    private static final int ICON_NAME_GAP = 6;
+
     private static final int TEXT_COLOR = 0xFFFFFF;
     private static final int BACKGROUND_COLOR = 0xB0101010;
 
@@ -107,7 +110,12 @@ public final class NarrativeOverlay {
                 .anyMatch(speaker -> speaker.name() != null && !speaker.name().trim().isEmpty());
         if (hasSpeaker) {
             Style textStyle = Style.EMPTY.withColor(TextColor.fromRgb(TEXT_COLOR));
-            speakerComponent = Component.literal("[");
+            // Скобки красим в цвет первого спикера. Корневой стиль компонента тоже
+            // берёт этот цвет: иначе символы без явного стиля наследуют белый
+            // цвет родителя, и "[Name]:" выглядит покрашенным не полностью.
+            Style bracketStyle = Style.EMPTY.withColor(
+                    TextColor.fromRgb(message.getSpeakers().get(0).nameColor()));
+            speakerComponent = Component.literal("[").withStyle(bracketStyle);
             for (int i = 0; i < message.getSpeakers().size(); i++) {
                 SpeakerInfo speaker = message.getSpeakers().get(i);
                 String name = speaker.name() == null ? "" : speaker.name().trim();
@@ -118,12 +126,14 @@ public final class NarrativeOverlay {
                 speakerComponent = speakerComponent.append(Component.literal(name).withStyle(nameStyle));
             }
             speakerComponent = speakerComponent
-                    .append(Component.literal("]").withStyle(Style.EMPTY.withColor(TextColor.fromRgb(message.getSpeakers().get(0).nameColor()))))
+                    .append(Component.literal("]").withStyle(bracketStyle))
                     .append(Component.literal(":").withStyle(textStyle));
-            if (hasSpeaker) {
-                nameWidth = font.width(speakerComponent);
-            }
+            nameWidth = font.width(speakerComponent);
         }
+
+        // Имя отодвинуто от иконок отдельным зазором (ICON_NAME_GAP), чтобы
+        // подписи не примыкали к последней иконке впритык.
+        int iconNameGap = (hasSpeaker && !icons.isEmpty()) ? ICON_NAME_GAP : 0;
 
         int textContentWidth = 0;
         for (FormattedCharSequence line : fullLines) {
@@ -134,6 +144,7 @@ public final class NarrativeOverlay {
         // Расчет общей ширины плашки
         int boxWidth =
                 iconAreaWidth
+                + iconNameGap
                 + nameWidth
                 + (hasSpeaker ? NAME_GAP : 0)
                 + textContentWidth
@@ -145,6 +156,7 @@ public final class NarrativeOverlay {
                 boxLeft
                 + PADDING
                 + iconAreaWidth
+                + iconNameGap
                 + nameWidth
                 + (hasSpeaker ? NAME_GAP : 0);
 
@@ -179,7 +191,7 @@ public final class NarrativeOverlay {
 
         // 3. Отрисовка имени ([Name]: — двоеточие в цвете текста, по первой строке)
         if (hasSpeaker) {
-            int nameX = boxLeft + PADDING + iconAreaWidth;
+            int nameX = boxLeft + PADDING + iconAreaWidth + iconNameGap;
             font.drawShadow(poseStack, speakerComponent, nameX, nameY, TEXT_COLOR);
         }
 

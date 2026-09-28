@@ -39,7 +39,8 @@ public class NarrativeLogScreen extends Screen {
      */
     private static final int BAR_NINE_SLICE_BORDER = 12;
 
-    private static final int ICON_SIZE = 20;
+    /** Иконка спикера в логе: единый размер 16x16, как и в плашке реплики. */
+    private static final int ICON_SIZE = 16;
     private static final int ROW_GAP = 10;
     private static final int LINE_HEIGHT = 10;
     private static final int NAME_LINE_HEIGHT = 11;

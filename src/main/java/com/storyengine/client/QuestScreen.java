@@ -82,7 +82,7 @@ public class QuestScreen extends Screen {
     private static final int TAB_H = 24;
     private static final int TAB_W = 150;
     private static final int TAB_GAP = 8;
-    private static final int TAB_ICON_SIZE = 12;
+    private static final int TAB_ICON_SIZE = 16;
     /** Толщина неизменяемого края (9-slice) для спрайтов вкладок и строк списка. */
     private static final int TAB_NINE_SLICE_BORDER = 8;
     private static final int ROW_NINE_SLICE_BORDER = 6;
@@ -258,14 +258,16 @@ public class QuestScreen extends Screen {
             int u = tab == currentTab ? 160 : (hovered ? 80 : 0);
             blitWidget(poseStack, x, y, TAB_W, TAB_H, u, 20, 80, 24, TAB_NINE_SLICE_BORDER);
 
-            // Иконка статуса слева от подписи (весь спрайт 32x32 из gui_atlas.png).
+            // Иконка статуса слева от подписи (спрайт 16x16 из gui_atlas.png).
             String iconId = tab.iconId();
             MenuAssetsManager.blit(poseStack, iconId,
-                    x + 10, y + (TAB_H - TAB_ICON_SIZE) / 2, TAB_ICON_SIZE, TAB_ICON_SIZE);
+                    x + 11, y + (TAB_H - TAB_ICON_SIZE) / 2, TAB_ICON_SIZE, TAB_ICON_SIZE);
 
             int textColor = tab == currentTab ? MenuCustomizationConfig.accent()
                     : (hovered ? MenuCustomizationConfig.tabHover() : MenuCustomizationConfig.tabIdle());
-            int labelX = x + 26 + (TAB_W - 32 - this.font.width(tab.title)) / 2;
+            int labelAreaX = x + 30;
+            int labelAreaW = TAB_W - 38;
+            int labelX = labelAreaX + (labelAreaW - this.font.width(tab.title)) / 2;
             int labelY = y + (TAB_H - 8) / 2;
             this.font.drawShadow(poseStack, tab.title, labelX, labelY, withAlpha(textColor, anim.alpha));
             RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);

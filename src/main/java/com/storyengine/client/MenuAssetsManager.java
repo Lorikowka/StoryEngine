@@ -128,14 +128,15 @@ public final class MenuAssetsManager {
 
     /**
      * Фиксированная раскладка атласа: id -> {u, v, w, h} в пикселях gui_atlas.png.
-     * Верхний ряд - квадратные иконки по 32px, ниже - широкие бары истории чата.
+     * Верхний ряд - квадратные иконки по 16px (строки 16..31 оставлены пустыми,
+     * чтобы полосы истории чата не пришлось двигать), ниже - широкие бары.
      */
     private static final Map<String, int[]> ATLAS_REGIONS = new HashMap<>();
     static {
-        ATLAS_REGIONS.put("status_active", new int[]{0, 0, 32, 32});
-        ATLAS_REGIONS.put("status_completed", new int[]{32, 0, 32, 32});
-        ATLAS_REGIONS.put("status_failed", new int[]{64, 0, 32, 32});
-        ATLAS_REGIONS.put("quest_icon", new int[]{96, 0, 32, 32});
+        ATLAS_REGIONS.put("status_active", new int[]{0, 0, 16, 16});
+        ATLAS_REGIONS.put("status_completed", new int[]{16, 0, 16, 16});
+        ATLAS_REGIONS.put("status_failed", new int[]{32, 0, 16, 16});
+        ATLAS_REGIONS.put("quest_icon", new int[]{48, 0, 16, 16});
         ATLAS_REGIONS.put("narrative_header", new int[]{0, 32, 360, 30});
         ATLAS_REGIONS.put("narrative_footer", new int[]{0, 62, 360, 26});
         ATLAS_REGIONS.put("quest_toast", new int[]{0, 88, 220, 36});
