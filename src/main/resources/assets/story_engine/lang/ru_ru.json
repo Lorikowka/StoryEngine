@@ -11,5 +11,6 @@
   "story_engine.action.ring": "Позвонить",
   "story_engine.action.take": "Подобрать",
   "story_engine.action.trade": "Торговать",
-  "story_engine.action.sit": "Сесть"
+  "story_engine.action.sit": "Сесть",
+  "story_engine.action.talk": "Поговорить"
 }

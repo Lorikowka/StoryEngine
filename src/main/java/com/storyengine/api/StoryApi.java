@@ -2,9 +2,19 @@ package com.storyengine.api;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
+import com.storyengine.StoryEngineMod;
 import com.storyengine.narrative.NarrativeMessage;
 import com.storyengine.narrative.NarrativeStyle;
 import com.storyengine.network.NarrativeNetworking;
+import com.storyengine.network.QuestNetworking;
+import com.storyengine.player.PlayerQuestDataHelper;
+import com.storyengine.quest.LocationQuestTask;
+import com.storyengine.quest.ManualQuestTask;
+import com.storyengine.quest.QuestData;
+import com.storyengine.quest.QuestManager;
+import com.storyengine.quest.QuestRewards;
+import com.storyengine.quest.QuestStatus;
+import com.storyengine.quest.QuestTask;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
@@ -38,6 +48,17 @@ import java.util.List;
  * <pre>{@code
  * execute { StoryApi.tellCommand("Орен", "oren", "36612F", "Текст") }
  * execute { StoryApi.questStartCommand("@a", "routine_work") }
+ * }</pre>
+ *
+ * Для сюжетных квестов предпочтителен <b>прямой API</b> (раздел «Прямой API
+ * квестов»): он не идёт через Brigadier, идемпотентен (повторный запуск сюжета
+ * безопасен) и не засоряет лог сообщениями «execution failed!». Такие методы
+ * возвращают {@code void}, поэтому вызывайте их из узла side-effect {@code next { }}:
+ *
+ * <pre>{@code
+ * next { StoryApi.ensureQuest("routine_work", "Дом - работа - дом.", "...") }
+ * next { StoryApi.addManualTask("routine_work", "exit_corridor", "Выйти в коридор") }
+ * next { StoryApi.startQuestAll("routine_work") }
  * }</pre>
  *
  * Для «прямой» отправки (без строк-команд) есть {@link #tell(Collection, String, String, String, int, NarrativeStyle)};
@@ -266,6 +287,301 @@ public final class StoryApi {
     /** {@code story quest task complete <targets> <questId> <taskId>}. */
     public static String questTaskCompleteCommand(String targets, String questId, String taskId) {
         return "story quest task complete " + orDefault(targets, "@a") + " " + questId + " " + taskId;
+    }
+
+    // ==================================================================
+    //  Прямой API квестов (без Brigadier-команд)
+    // ==================================================================
+    //
+    //  Эти методы работают с QuestManager/PlayerQuestDataHelper напрямую и
+    //  специально сделаны идемпотентными: повторный запуск сюжета не ломает
+    //  квесты и не сыпет в лог «execution failed!» (это сообщение HollowEngine
+    //  печатает, когда команда возвращает 0, что для нас норма при ре-ране).
+    //
+    //  Вызывать из скриптов через узел side-effect next { }:
+    //      next { StoryApi.ensureQuest("routine_work", "Дом - работа - дом.", "...") }
+    //      next { StoryApi.addManualTask("routine_work", "exit_corridor", "Выйти в коридор") }
+    //      next { StoryApi.startQuestAll("routine_work") }
+    //
+    //  Сервер берётся из ServerLifecycleHooks.getCurrentServer(): в скриптовых
+    //  extension-функциях с receiver IContextBuilder нет доступа к server
+    //  (он член StoryStateMachine/StoryScript), поэтому передавать его не нужно.
+
+    /** Идентификаторы дефолтных задач, которые createTemplate кладёт в шаблон. */
+    private static final String DEFAULT_TASK_EXAMPLE = "example_task";
+    private static final String DEFAULT_TASK_LOCATION = "location_task";
+
+    /**
+     * Идемпотентно готовит квест: создаёт, если его ещё нет, иначе обновляет
+     * title/description. Награды всегда очищаются — в сюжете они не нужны
+     * (createTemplate по умолчанию кладёт изумруды/алмазы/опыт, их быть не должно).
+     *
+     * @return сам квест или {@code null}, если что-то не так с аргументами.
+     */
+    public static QuestData ensureQuest(String questId, String title, String description) {
+        if (questId == null || questId.isBlank()) {
+            return null;
+        }
+        QuestManager manager = StoryEngineMod.QUEST_MANAGER;
+        QuestData quest = manager.getQuest(questId).orElse(null);
+        if (quest == null) {
+            // createTemplate сразу сохраняет файл и кладёт квест в кэш.
+            quest = manager.createTemplate(questId, title);
+        }
+        if (title != null && !title.isBlank()) {
+            quest.setTitle(title);
+        }
+        if (description != null) {
+            quest.setDescription(description);
+        }
+        // Никаких наград: даже если ранее квест создавался через /story quest create,
+        // дефолтные изумруды/алмазы/опыт убираем при каждом вызове.
+        quest.setRewards(new QuestRewards());
+        manager.save(quest);
+        syncAll();
+        return quest;
+    }
+
+    /** Обновить только описание существующего квеста. */
+    public static void editQuestDescription(String questId, String description) {
+        if (questId == null || description == null) {
+            return;
+        }
+        QuestManager manager = StoryEngineMod.QUEST_MANAGER;
+        QuestData quest = manager.getQuest(questId).orElse(null);
+        if (quest == null) {
+            return;
+        }
+        quest.setDescription(description);
+        manager.save(quest);
+        syncAll();
+    }
+
+    /**
+     * Добавить MANUAL-подзадачу. Если задача с таким id уже есть — обновляет её
+     * заголовок (идемпотентно). Заодно вычищает дефолтные задачи шаблона
+     * (example_task/location_task), но ТОЛЬКО когда в квесте уже есть настоящая
+     * задача — иначе квест на миг остался бы без задач и трекер мгновенно его
+     * завершил бы.
+     */
+    public static void addManualTask(String questId, String taskId, String title) {
+        if (questId == null || taskId == null) {
+            return;
+        }
+        QuestManager manager = StoryEngineMod.QUEST_MANAGER;
+        QuestData quest = manager.getQuest(questId).orElse(null);
+        if (quest == null) {
+            return;
+        }
+        QuestTask existing = findTask(quest, taskId);
+        if (existing != null) {
+            existing.setTitle(title);
+        } else {
+            quest.getTasks().add(new ManualQuestTask(taskId, title, ""));
+        }
+        stripDefaultTasks(quest);
+        manager.save(quest);
+        syncAll();
+    }
+
+    /**
+     * Добавить LOCATION-подзадачу (выполняется автоматически при подходе игрока).
+     * Идемпотентно по taskId, дефолтные задачи шаблона вычищаются там же.
+     */
+    public static void addLocationTask(String questId, String taskId,
+                                       String dimension, double x, double y, double z, double radius, String title) {
+        if (questId == null || taskId == null) {
+            return;
+        }
+        QuestManager manager = StoryEngineMod.QUEST_MANAGER;
+        QuestData quest = manager.getQuest(questId).orElse(null);
+        if (quest == null) {
+            return;
+        }
+        QuestTask existing = findTask(quest, taskId);
+        LocationQuestTask task = existing instanceof LocationQuestTask location ? location : new LocationQuestTask();
+        if (existing == null) {
+            quest.getTasks().add(task);
+        }
+        task.setId(taskId);
+        task.setTitle(title);
+        if (task.getDescription() == null) {
+            task.setDescription("");
+        }
+        task.setDimension(dimension);
+        task.setX(x);
+        task.setY(y);
+        task.setZ(z);
+        task.setRadius(radius);
+        stripDefaultTasks(quest);
+        manager.save(quest);
+        syncAll();
+    }
+
+    /** Удалить подзадачу, если она есть (идемпотентно). */
+    public static void removeTask(String questId, String taskId) {
+        if (questId == null || taskId == null) {
+            return;
+        }
+        QuestManager manager = StoryEngineMod.QUEST_MANAGER;
+        QuestData quest = manager.getQuest(questId).orElse(null);
+        if (quest == null) {
+            return;
+        }
+        if (!quest.getTasks().removeIf(task -> taskId.equals(task.getId()))) {
+            return;
+        }
+        manager.save(quest);
+        syncAll();
+    }
+
+    // ---- Игрок и прогресс ----
+
+    /** Перевести квест в ACTIVE у всех игроков онлайн. */
+    public static void startQuestAll(String questId) {
+        for (ServerPlayer player : online()) {
+            PlayerQuestDataHelper.setStatus(player, questId, QuestStatus.ACTIVE);
+        }
+    }
+
+    /** Перевести квест в ACTIVE у игрока. */
+    public static void startQuest(ServerPlayer player, String questId) {
+        if (player == null || questId == null) {
+            return;
+        }
+        PlayerQuestDataHelper.setStatus(player, questId, QuestStatus.ACTIVE);
+    }
+
+    /** Сбросить прогресс квеста у всех игроков онлайн. */
+    public static void resetQuestAll(String questId) {
+        for (ServerPlayer player : online()) {
+            PlayerQuestDataHelper.reset(player, questId);
+        }
+    }
+
+    /** Сбросить прогресс квеста у игрока. */
+    public static void resetQuest(ServerPlayer player, String questId) {
+        if (player == null || questId == null) {
+            return;
+        }
+        PlayerQuestDataHelper.reset(player, questId);
+    }
+
+    /** Отметить подзадачу выполненной у всех игроков онлайн. */
+    public static void completeTaskAll(String questId, String taskId) {
+        for (ServerPlayer player : online()) {
+            completeTask(player, questId, taskId);
+        }
+    }
+
+    /**
+     * Отметить подзадачу выполненной. Если после этого не осталось незавершённых
+     * задач — квест сразу переводится в COMPLETED. Награды не выдаются.
+     */
+    public static void completeTask(ServerPlayer player, String questId, String taskId) {
+        if (player == null || questId == null || taskId == null) {
+            return;
+        }
+        QuestData quest = StoryEngineMod.QUEST_MANAGER.getQuest(questId).orElse(null);
+        if (quest == null || findTask(quest, taskId) == null) {
+            return;
+        }
+        PlayerQuestDataHelper.completeTask(player, questId, taskId);
+        QuestNetworking.sendQuestStatusMessage(player, "Подзадача '" + taskTitle(quest, taskId) + "' выполнена");
+        boolean allDone = quest.getTasks().stream()
+                .allMatch(task -> PlayerQuestDataHelper.isTaskCompleted(player, questId, task.getId()));
+        if (allDone) {
+            PlayerQuestDataHelper.setStatus(player, questId, QuestStatus.COMPLETED);
+            QuestNetworking.sendQuestStatusMessage(player, "Квест '" + quest.getTitle() + "' выполнен");
+        }
+    }
+
+    /** Принудительно завершить квест у всех игроков онлайн. */
+    public static void completeQuestAll(String questId) {
+        for (ServerPlayer player : online()) {
+            completeQuest(player, questId);
+        }
+    }
+
+    /** Принудительно завершить квест у игрока. Награды не выдаются. */
+    public static void completeQuest(ServerPlayer player, String questId) {
+        if (player == null || questId == null) {
+            return;
+        }
+        QuestData quest = StoryEngineMod.QUEST_MANAGER.getQuest(questId).orElse(null);
+        if (quest == null) {
+            return;
+        }
+        PlayerQuestDataHelper.setStatus(player, questId, QuestStatus.COMPLETED);
+        QuestNetworking.sendQuestStatusMessage(player, "Квест '" + quest.getTitle() + "' выполнен");
+    }
+
+    /** Провалить квест у всех игроков онлайн. */
+    public static void failQuestAll(String questId) {
+        for (ServerPlayer player : online()) {
+            failQuest(player, questId);
+        }
+    }
+
+    /** Провалить квест у игрока. */
+    public static void failQuest(ServerPlayer player, String questId) {
+        if (player == null || questId == null) {
+            return;
+        }
+        QuestData quest = StoryEngineMod.QUEST_MANAGER.getQuest(questId).orElse(null);
+        if (quest == null) {
+            return;
+        }
+        PlayerQuestDataHelper.setStatus(player, questId, QuestStatus.FAILED);
+        QuestNetworking.sendQuestStatusMessage(player, "Квест '" + quest.getTitle() + "' провален");
+    }
+
+    /** Тост-уведомление всем игрокам онлайн (аналог {@code /story quest notify}). */
+    public static void notify(String title, String text) {
+        QuestNetworking.sendToastToAll(title == null ? "Квест" : title, text == null ? "" : text);
+    }
+
+    // ---- Внутренние помощники прямого API ----
+
+    private static MinecraftServer currentServer() {
+        return net.minecraftforge.server.ServerLifecycleHooks.getCurrentServer();
+    }
+
+    private static List<ServerPlayer> online() {
+        MinecraftServer server = currentServer();
+        return server == null ? List.of() : server.getPlayerList().getPlayers();
+    }
+
+    private static void syncAll() {
+        for (ServerPlayer player : online()) {
+            QuestNetworking.syncToPlayer(player);
+        }
+    }
+
+    private static QuestTask findTask(QuestData quest, String taskId) {
+        return quest.getTasks().stream().filter(task -> taskId.equals(task.getId())).findFirst().orElse(null);
+    }
+
+    private static String taskTitle(QuestData quest, String taskId) {
+        QuestTask task = findTask(quest, taskId);
+        return task == null || task.getTitle() == null ? taskId : task.getTitle();
+    }
+
+    /**
+     * Убирает дефолтные задачи шаблона, но не оставляет квест пустым:
+     * удаление происходит, только если в квесте уже есть «настоящая» задача.
+     */
+    private static void stripDefaultTasks(QuestData quest) {
+        boolean hasRealTask = quest.getTasks().stream()
+                .anyMatch(task -> !isDefaultTask(task.getId()));
+        if (!hasRealTask) {
+            return;
+        }
+        quest.getTasks().removeIf(task -> isDefaultTask(task.getId()));
+    }
+
+    private static boolean isDefaultTask(String taskId) {
+        return DEFAULT_TASK_EXAMPLE.equals(taskId) || DEFAULT_TASK_LOCATION.equals(taskId);
     }
 
     // ==================================================================

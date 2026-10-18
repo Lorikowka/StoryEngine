@@ -45,6 +45,15 @@ public final class VanillaActionResolver {
     public static final String TAKE = "story_engine.action.take";
     public static final String TRADE = "story_engine.action.trade";
     public static final String SIT = "story_engine.action.sit";
+    public static final String TALK = "story_engine.action.talk";
+
+    /**
+     * Имя класса NPCEntity из HollowEngine. Мод не зависит от HollowEngine
+     * compile-time, поэтому сравниваем по имени, а не по instanceof: так F-подсказка
+     * и подавление ПКМ работают с любым NPC (полягаемый мод), и при его отсутствии
+     * ничего не падает.
+     */
+    private static final String NPC_ENTITY_CLASS = "ru.hollowhorizon.hollowengine.common.entities.NPCEntity";
 
     private VanillaActionResolver() {
     }
@@ -82,15 +91,31 @@ public final class VanillaActionResolver {
         return null;
     }
 
-    /** Действие для сущности или null (пока только ItemFrame с предметом). */
+    /** Действие для сущности или null (ItemFrame с предметом + NPC из HollowEngine). */
     public static String getEntityAction(Entity entity) {
         if (entity instanceof ItemFrame frame) {
             return frame.getItem().isEmpty() ? null : TAKE;
+        }
+        if (isNpc(entity)) {
+            return TALK;
         }
         return null;
     }
 
     public static boolean canInteract(Entity entity) {
         return getEntityAction(entity) != null;
+    }
+
+    /**
+     * NPCEntity из HollowEngine — по имени класса (мод не в зависимостях compile-time).
+     * Сюда попадают и все наследники NPC, заданные в HollowEngine.
+     */
+    private static boolean isNpc(Entity entity) {
+        for (Class<?> c = entity.getClass(); c != null; c = c.getSuperclass()) {
+            if (NPC_ENTITY_CLASS.equals(c.getName())) {
+                return true;
+            }
+        }
+        return false;
     }
 }

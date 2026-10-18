@@ -11,5 +11,6 @@
   "story_engine.action.ring": "Ring",
   "story_engine.action.take": "Take",
   "story_engine.action.trade": "Trade",
-  "story_engine.action.sit": "Sit"
+  "story_engine.action.sit": "Sit",
+  "story_engine.action.talk": "Talk"
 }
