@@ -16,9 +16,20 @@ import com.storyengine.quest.QuestRewards;
 import com.storyengine.quest.QuestStatus;
 import com.storyengine.quest.QuestTask;
 import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Registry;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraftforge.common.capabilities.ForgeCapabilities;
+import net.minecraftforge.items.IItemHandler;
+import net.minecraftforge.registries.ForgeRegistries;
 
 import java.util.Collection;
 import java.util.List;
@@ -539,6 +550,100 @@ public final class StoryApi {
     /** Тост-уведомление всем игрокам онлайн (аналог {@code /story quest notify}). */
     public static void notify(String title, String text) {
         QuestNetworking.sendToastToAll(title == null ? "Квест" : title, text == null ? "" : text);
+    }
+
+    // ==================================================================
+    //  Мини-игра: документ в бочке — проверка и потребление ПО ИМЕНИ
+    // ==================================================================
+
+    /**
+     * Лежит ли в контейнере (бочке) на позиции предмет указанного типа с точным
+     * display-именем. Это аналог {@code waitStorage}, но с проверкой имени:
+     * документ с другим именем (хоть и того же типа) принят не будет.
+     *
+     * @param world  идентификатор измерения, напр. {@code minecraft:overworld}
+     * @param itemId идентификатор предмета: {@code minecraft:paper} или {@code paper}
+     * @param name   точное display-имя документа (то, что задано в GiveDocument/GiveBook)
+     */
+    public static boolean barrelHasNamedItem(String world, double x, double y, double z, String itemId, String name) {
+        IItemHandler handler = barrelHandler(world, x, y, z);
+        if (handler == null) {
+            return false;
+        }
+        Item expected = itemById(itemId);
+        if (expected == null) {
+            return false;
+        }
+        for (int slot = 0; slot < handler.getSlots(); slot++) {
+            if (matches(handler.getStackInSlot(slot), expected, name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Забрать ОДИН указанный документ из бочки (по типу + точному имени).
+     * Возвращает {@code true}, только если документ был найден и извлечён.
+     * Удобно гонять из узла ожидания — вернёт истину в тик, когда игрок положил
+     * нужный документ, и сразу заберёт его:
+     *
+     * <pre>{@code
+     * await { StoryApi.consumeNamedItem("minecraft:overworld", -54.0, 56.0, 6.0, "minecraft:paper", "Папка №13-А") }
+     * }</pre>
+     */
+    public static boolean consumeNamedItem(String world, double x, double y, double z, String itemId, String name) {
+        IItemHandler handler = barrelHandler(world, x, y, z);
+        if (handler == null) {
+            return false;
+        }
+        Item expected = itemById(itemId);
+        if (expected == null) {
+            return false;
+        }
+        for (int slot = 0; slot < handler.getSlots(); slot++) {
+            if (matches(handler.getStackInSlot(slot), expected, name)) {
+                handler.extractItem(slot, 1, false);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean matches(ItemStack stack, Item expected, String name) {
+        return !stack.isEmpty()
+                && stack.getItem() == expected
+                && stack.getHoverName().getString().equals(name);
+    }
+
+    private static Item itemById(String itemId) {
+        if (itemId == null || itemId.isEmpty()) {
+            return null;
+        }
+        ResourceLocation id = itemId.contains(":")
+                ? new ResourceLocation(itemId)
+                : new ResourceLocation("minecraft", itemId);
+        return ForgeRegistries.ITEMS.getValue(id);
+    }
+
+    private static IItemHandler barrelHandler(String world, double x, double y, double z) {
+        MinecraftServer server = currentServer();
+        if (server == null) {
+            return null;
+        }
+        ResourceLocation rl = world == null || world.isEmpty()
+                ? new ResourceLocation("minecraft", "overworld")
+                : new ResourceLocation(world);
+        ServerLevel level = server.getLevel(ResourceKey.create(Registry.DIMENSION_REGISTRY, rl));
+        if (level == null) {
+            return null;
+        }
+        BlockPos pos = new BlockPos((int) Math.floor(x), (int) Math.floor(y), (int) Math.floor(z));
+        BlockEntity blockEntity = level.getBlockEntity(pos);
+        if (blockEntity == null) {
+            return null;
+        }
+        return blockEntity.getCapability(ForgeCapabilities.ITEM_HANDLER).resolve().orElse(null);
     }
 
     // ---- Внутренние помощники прямого API ----
