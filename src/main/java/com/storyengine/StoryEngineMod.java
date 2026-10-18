@@ -56,6 +56,11 @@ public class StoryEngineMod {
         DialogueNetworking.register();
         TriggerNetworking.register();
         ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, MenuCustomizationConfig.SPEC);
+        // Кнопка «Настройки» в списке модов Forge активируется только при
+        // зарегистрированной фабрике экрана (клиентная часть, см. StoryEngineConfigScreen).
+        if (net.minecraftforge.fml.loading.FMLEnvironment.dist == net.minecraftforge.api.distmarker.Dist.CLIENT) {
+            com.storyengine.client.StoryEngineConfigScreen.register();
+        }
         MinecraftForge.EVENT_BUS.register(this);
         MinecraftForge.EVENT_BUS.register(new QuestProgressTracker());
         LOGGER.info("[StoryEngine] Мод инициализирован, модуль квестов активен.");

@@ -10,7 +10,7 @@ import net.minecraftforge.fml.common.Mod;
  * Все цвета хранятся в формате ARGB (0xAARRGGBB, 8 hex-цифр), как в
  * {@link QuestMenuPalette}. Дефолтные значения берутся оттуда же, поэтому
  * правка цветов в quest_menu через код больше не нужна - всё правится тут
- * или в игре: Моды → Story Engine → Config (файл config/story_engine-client.toml).
+ * или в игре: Моды → Story Engine → Настройки (файл config/story_engine-client.toml).
  */
 @Mod.EventBusSubscriber(modid = StoryEngineMod.MOD_ID, bus = Mod.EventBusSubscriber.Bus.MOD)
 public final class MenuCustomizationConfig {
