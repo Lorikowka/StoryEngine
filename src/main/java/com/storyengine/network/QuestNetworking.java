@@ -113,11 +113,28 @@ public final class QuestNetworking {
     }
 
     public static void sendQuestStatusMessage(ServerPlayer player, String text) {
+        if (!questNotificationsEnabled) {
+            return; // авто-оповещения при обновлении квестов выключены (StoryApi)
+        }
         if (player == null || player.level.isClientSide || text == null || text.isBlank()) {
             return;
         }
         CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new S2CQuestStatusMessagePacket(text));
         sendToast(player, "Квест", text);
+    }
+
+    /** Авто-оповещения при обновлении квеста (actionbar + тост): вкл/выкл из StoryApi. */
+    private static boolean questNotificationsEnabled = true;
+
+    /**
+     * Глобальный тумблер автоматических оповещений при обновлении квестов —
+     * строка под прицелом и тост (sendQuestStatusMessage). При выключенном
+     * состоянии прогресс обновляется, но игроку ничего не отправляется.
+     * Ручной путь — {@link #sendToastToAll} (StoryApi.notify,
+     * {@code /story quest notify}) — не затрагивается.
+     */
+    public static void setQuestNotificationsEnabled(boolean enabled) {
+        questNotificationsEnabled = enabled;
     }
 
     /** Тост одному игроку (например, из /quest complete/fail/task complete). */
