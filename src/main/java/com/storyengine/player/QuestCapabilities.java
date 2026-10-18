@@ -27,6 +27,7 @@ public final class QuestCapabilities {
     public static void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
         if (event.getEntity() instanceof ServerPlayer serverPlayer) {
             QuestNetworking.syncToPlayer(serverPlayer);
+            QuestNetworking.syncInteractionHints(serverPlayer);
         }
     }
 

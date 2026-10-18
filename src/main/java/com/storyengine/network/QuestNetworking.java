@@ -2,6 +2,7 @@ package com.storyengine.network;
 
 import com.storyengine.StoryEngineMod;
 import com.storyengine.client.MenuAssetsManager;
+import com.storyengine.client.MenuCustomizationConfig;
 import com.storyengine.player.PlayerQuestDataCapability;
 import com.storyengine.quest.BlockBreakQuestTask;
 import com.storyengine.quest.ItemQuestTask;
@@ -40,9 +41,10 @@ public final class QuestNetworking {
 
     private static int packetId = 0;
     // Id на общем CHANNEL, тот же канал: NarrativeNetworking = 2, DialogueNetworking = 6-9 и 12,
-    // TriggerNetworking = 13 и 14. Свободны пока 3, 10, 11. См. соответствующие классы.
+    // TriggerNetworking = 13 и 14. Свободны пока 10, 11. См. соответствующие классы.
     private static final int TOAST_PACKET_ID = 4;
     private static final int MENU_RESET_PACKET_ID = 5;
+    private static final int HINTS_TOGGLE_PACKET_ID = 3;
 
     /** Верхние границы для decode: защита от битых/зловредных пакетов (петли на миллионы итераций). */
     private static final int MAX_QUESTS = 4096;
@@ -56,12 +58,35 @@ public final class QuestNetworking {
         CHANNEL.registerMessage(packetId++, S2CQuestStatusMessagePacket.class, S2CQuestStatusMessagePacket::encode, S2CQuestStatusMessagePacket::decode, S2CQuestStatusMessagePacket::handle);
         CHANNEL.registerMessage(TOAST_PACKET_ID, S2CQuestToastPacket.class, S2CQuestToastPacket::encode, S2CQuestToastPacket::decode, S2CQuestToastPacket::handle);
         CHANNEL.registerMessage(MENU_RESET_PACKET_ID, S2CMenuAssetsResetPacket.class, S2CMenuAssetsResetPacket::encode, S2CMenuAssetsResetPacket::decode, S2CMenuAssetsResetPacket::handle);
+        CHANNEL.registerMessage(HINTS_TOGGLE_PACKET_ID, S2CInteractionHintsPacket.class, S2CInteractionHintsPacket::encode, S2CInteractionHintsPacket::decode, S2CInteractionHintsPacket::handle);
     }
 
     /** Сброс кэша текстур меню на всех клиентах (после /storymenu reset|reload). */
     public static void sendMenuAssetsReset() {
         CHANNEL.send(PacketDistributor.ALL.noArg(), new S2CMenuAssetsResetPacket());
     }
+
+    /**
+     * Глобально включить/выключить F-взаимодействие (Interaction Hint System)
+     * на клиентах всех игроков онлайн: HUD-подсказка «[F] ...», сама кнопка F
+     * и подавление ПКМ вне креатива. Для вошедших позже игроков
+     * состояние повторяется в {@link #syncInteractionHints(ServerPlayer)}.
+     */
+    public static void sendInteractionHints(boolean enabled) {
+        lastInteractionHints = enabled;
+        CHANNEL.send(PacketDistributor.ALL.noArg(), new S2CInteractionHintsPacket(enabled));
+    }
+
+    /** Повторная отправка последнего состояния подсказок вошедшему игроку (null — ещё не менялось). */
+    public static void syncInteractionHints(ServerPlayer player) {
+        if (lastInteractionHints == null || player == null) {
+            return;
+        }
+        CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new S2CInteractionHintsPacket(lastInteractionHints));
+    }
+
+    /** Последнее состояние, заданное скриптом через StoryApi (null — скрипт не менял). */
+    private static Boolean lastInteractionHints = null;
 
     public static void sendQuestStatusMessage(ServerPlayer player, String text) {
         if (player == null || player.level.isClientSide || text == null || text.isBlank()) {
@@ -402,6 +427,38 @@ public final class QuestNetworking {
             context.enqueueWork(() -> {
                 if (context.getDirection() == NetworkDirection.PLAY_TO_CLIENT) {
                     MenuAssetsManager.clearCache();
+                }
+            });
+            context.setPacketHandled(true);
+        }
+    }
+
+    /**
+     * S2C-пакет глобального включения/выключения Interaction Hint System
+     * (StoryApi.setInteractionHintsEnabled). Клиент применяет значение к
+     * INTERACTION_HINT_ENABLED; настройка сессионная — после перезапуска
+     * действует значение из client-конфига.
+     */
+    public static final class S2CInteractionHintsPacket {
+        private final boolean enabled;
+
+        public S2CInteractionHintsPacket(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public static void encode(S2CInteractionHintsPacket packet, FriendlyByteBuf buffer) {
+            buffer.writeBoolean(packet.enabled);
+        }
+
+        public static S2CInteractionHintsPacket decode(FriendlyByteBuf buffer) {
+            return new S2CInteractionHintsPacket(buffer.readBoolean());
+        }
+
+        public static void handle(S2CInteractionHintsPacket packet, Supplier<net.minecraftforge.network.NetworkEvent.Context> contextSupplier) {
+            net.minecraftforge.network.NetworkEvent.Context context = contextSupplier.get();
+            context.enqueueWork(() -> {
+                if (context.getDirection() == NetworkDirection.PLAY_TO_CLIENT) {
+                    MenuCustomizationConfig.INTERACTION_HINT_ENABLED.set(packet.enabled);
                 }
             });
             context.setPacketHandled(true);

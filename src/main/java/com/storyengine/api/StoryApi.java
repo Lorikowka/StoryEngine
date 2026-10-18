@@ -341,6 +341,32 @@ public final class StoryApi {
         return StoryEngineMod.TRIGGER_MANAGER.saveTrigger(definition);
     }
 
+    /**
+     * Глобально включить/выключить F-взаимодействие и подсказки
+     * (Interaction Hint System) на клиентах всех игроков онлайн.
+     *
+     * <p><b>Выключено</b> — исчезает HUD-подсказка «[F] ...», <b>кнопка F
+     * перестаёт работать</b> и ПКМ вне креатива больше не подавляется
+     * (ванильное взаимодействие идёт как обычно). Удобно на время кат-сцен,
+     * лобби или «служебных» зон. <b>Включено</b> — всё возвращается к
+     * состоянию из client-конфига мода.
+     *
+     * <p>Значение сессионное: после перезапуска клиента действует настройка из
+     * конфига. Вызывать из узла {@code next { }}:
+     *
+     * <pre>{@code
+     * next { StoryApi.setInteractionHintsEnabled(false) }  // кат-сцена: F выключен
+     * next { StoryApi.setInteractionHintsEnabled(true) }   // вернуть как было
+     * }</pre>
+     *
+     * <p>Точечно по отдельным блокам — списки no_hints/no_interact из
+     * {@code config/story_engine/interaction.json} (методы ниже) и триггеры
+     * с {@code cancel_vanilla} (раздел 7).
+     */
+    public static void setInteractionHintsEnabled(boolean enabled) {
+        QuestNetworking.sendInteractionHints(enabled);
+    }
+
     // ==================================================================
     //  Строители строк-команд для узла execute { } в HollowEngine
     // ==================================================================
