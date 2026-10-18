@@ -2,6 +2,7 @@ package com.storyengine.network;
 
 import com.storyengine.narrative.NarrativeChatManager;
 import com.storyengine.narrative.NarrativeMessage;
+import com.storyengine.narrative.NarrativeStyle;
 import com.storyengine.narrative.SpeakerInfo;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
@@ -20,6 +21,7 @@ public final class S2CStoryChatPacket {
 
     private final List<SpeakerInfo> speakers;
     private final Component message;
+    private final NarrativeStyle style;
 
     /** Верхняя граница числа спикеров в decode: защита от битых/зловредных пакетов. */
     private static final int MAX_SPEAKERS = 64;
@@ -29,8 +31,13 @@ public final class S2CStoryChatPacket {
     }
 
     public S2CStoryChatPacket(List<SpeakerInfo> speakers, Component message) {
+        this(speakers, message, NarrativeStyle.NORMAL);
+    }
+
+    public S2CStoryChatPacket(List<SpeakerInfo> speakers, Component message, NarrativeStyle style) {
         this.speakers = List.copyOf(speakers);
         this.message = message;
+        this.style = style == null ? NarrativeStyle.NORMAL : style;
     }
 
     public static void encode(S2CStoryChatPacket packet, FriendlyByteBuf buffer) {
@@ -40,6 +47,7 @@ public final class S2CStoryChatPacket {
             buffer.writeUtf(speaker.iconId() == null ? "none" : speaker.iconId());
             buffer.writeInt(speaker.nameColor());
         }
+        buffer.writeEnum(packet.style);
         buffer.writeComponent(packet.message);
     }
 
@@ -49,14 +57,15 @@ public final class S2CStoryChatPacket {
         for (int i = 0; i < speakerCount; i++) {
             speakers.add(new SpeakerInfo(buffer.readUtf(), buffer.readUtf(), buffer.readInt()));
         }
-        return new S2CStoryChatPacket(speakers, buffer.readComponent());
+        NarrativeStyle style = buffer.readEnum(NarrativeStyle.class);
+        return new S2CStoryChatPacket(speakers, buffer.readComponent(), style);
     }
 
     public static void handle(S2CStoryChatPacket packet, Supplier<NetworkEvent.Context> contextSupplier) {
         NetworkEvent.Context context = contextSupplier.get();
         context.enqueueWork(() -> {
             if (context.getDirection() == NetworkDirection.PLAY_TO_CLIENT) {
-                NarrativeChatManager.enqueue(new NarrativeMessage(packet.speakers, packet.message));
+                NarrativeChatManager.enqueue(new NarrativeMessage(packet.speakers, packet.message, packet.style));
             }
         });
         context.setPacketHandled(true);

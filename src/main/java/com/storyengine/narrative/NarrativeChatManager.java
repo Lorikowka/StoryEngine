@@ -31,21 +31,27 @@ public final class NarrativeChatManager {
 
     private static final Queue<NarrativeMessage> QUEUE = new ArrayDeque<>();
 
-    /** Максимальное число сообщений в живой очереди (защита от спама/латей). */
-    private static final int MAX_QUEUE_SIZE = 32;
-
-    /** Сколько тиков показывать один символ. 1 = 20 символов/сек. */
-    private static final int TICKS_PER_CHAR = 1;
-    /** Минимальное время показа после полной отрисовки, в тиках (1.5 сек). */
-    private static final int MIN_HOLD_TICKS = 30;
+    /** Максимальное число сообщений в живой очереди, из клиентского конфига. */
+    private static int maxQueueSize() {
+        return Math.max(1, MenuCustomizationConfig.narrativeHudMaxQueue());
+    }
 
     /** Символов в секунду из клиентского конфига (0 = мгновенно). */
     private static int charsPerSecond() {
         int cps = MenuCustomizationConfig.narrativeHudTextSpeed();
         return cps < 0 ? 0 : cps;
     }
-    /** Дополнительное время показа на символ сообщения, в тиках. */
-    private static final int HOLD_TICKS_PER_CHAR = 2;
+
+    /** Минимальная пауза после допечатки, в тиках (из конфига). */
+    private static int minHoldTicks() {
+        return Math.max(0, MenuCustomizationConfig.narrativeHudHoldMinTicks());
+    }
+
+    /** Прибавка паузы на каждый символ реплики, в тиках (из конфига). */
+    private static int holdTicksPerChar() {
+        return Math.max(0, MenuCustomizationConfig.narrativeHudHoldTicksPerChar());
+    }
+
     /** Сколько последних сообщений хранить в истории для NarrativeLogScreen. */
     private static final int MAX_HISTORY = 100;
 
@@ -62,7 +68,7 @@ public final class NarrativeChatManager {
         if (message == null) {
             return;
         }
-        if (QUEUE.size() >= MAX_QUEUE_SIZE) {
+        if (QUEUE.size() >= maxQueueSize()) {
             QUEUE.poll();
         }
         QUEUE.add(message);
@@ -104,7 +110,7 @@ public final class NarrativeChatManager {
 
         if (holdTicksRemaining < 0) {
             int length = plainLength();
-            holdTicksRemaining = Math.max(MIN_HOLD_TICKS, length * HOLD_TICKS_PER_CHAR);
+            holdTicksRemaining = Math.max(minHoldTicks(), length * holdTicksPerChar());
         } else if (holdTicksRemaining == 0) {
             current = null;
         } else {

@@ -91,7 +91,7 @@ public final class StoryCommand {
                 break;
             case "tell":
                 CommandFeedback.info(source, "Команды раздела tell:");
-                CommandFeedback.info(source, "  /story tell <targets> <speaker> <icon> [color <hex>] <message>");
+                CommandFeedback.info(source, "  /story tell <targets> <speaker> <icon> [whisper|thought] [color <hex>] <message>");
                 CommandFeedback.info(source, "    speaker — одно слово без кавычек, либо \"Голос за кадром\" в кавычках");
                 CommandFeedback.info(source, "    message — JSON, как в /tellraw: {\"text\":\"...\"}, последний аргумент");
                 CommandFeedback.info(source, "  /story tell <targets> chorus <speakers-json> <message> — реплика от нескольких спикеров");

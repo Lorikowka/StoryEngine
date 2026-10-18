@@ -106,6 +106,9 @@ public final class MenuCustomizationConfig {
 
     // === Narrative HUD (сюжетный чат, центр-низ экрана) ===
     public static final ForgeConfigSpec.IntValue NARRATIVE_TEXT_SPEED;
+    public static final ForgeConfigSpec.IntValue NARRATIVE_HOLD_MIN_TICKS;
+    public static final ForgeConfigSpec.IntValue NARRATIVE_HOLD_TICKS_PER_CHAR;
+    public static final ForgeConfigSpec.IntValue NARRATIVE_MAX_QUEUE;
 
     static {
         BUILDER.comment("Настройки кастомизации меню квестов (текстуры, цвета, масштаб).")
@@ -280,11 +283,24 @@ public final class MenuCustomizationConfig {
 
         BUILDER.pop();
 
-        BUILDER.comment("Настройки сюжетного чата (Narrative HUD): скорость печатной машинки.").push("narrativeHudCustomization");
+        BUILDER.comment("Настройки сюжетного чата (Narrative HUD): скорость печатной машинки, пауза и очередь.").push("narrativeHudCustomization");
         NARRATIVE_TEXT_SPEED = BUILDER.comment(
                         "Скорость печатной машинки сюжетного чата: символов в секунду.",
                         "0 = мгновенно, 20 ~ эталонная скорость.")
                 .defineInRange("charsPerSecond", 20, 0, 200);
+        NARRATIVE_HOLD_MIN_TICKS = BUILDER.comment(
+                        "Минимальная пауза после допечатки реплики, в тиках (20 тиков = 1 сек).",
+                        "Реплика уходит не раньше, чем через это время.")
+                .defineInRange("holdMinTicks", 30, 0, 600);
+        NARRATIVE_HOLD_TICKS_PER_CHAR = BUILDER.comment(
+                        "Насколько пауза растёт с длиной реплики: тиков на каждый символ.",
+                        "Итоговая пауза = max(holdMinTicks, длина * holdTicksPerChar).",
+                        "0 = держать всегда минимум.")
+                .defineInRange("holdTicksPerChar", 2, 0, 60);
+        NARRATIVE_MAX_QUEUE = BUILDER.comment(
+                        "Максимум реплик в очереди сюжетного чата.",
+                        "При переполнении самая старая реплика отбрасывается.")
+                .defineInRange("maxQueue", 32, 1, 512);
         BUILDER.pop();
 
         BUILDER.pop();
@@ -407,6 +423,21 @@ public final class MenuCustomizationConfig {
     /** Символов в секунду для сюжетного чата (Narrative HUD). 0 = мгновенно. */
     public static int narrativeHudTextSpeed() {
         return NARRATIVE_TEXT_SPEED.get();
+    }
+
+    /** Минимальная пауза после допечатки реплики сюжетного чата, в тиках. */
+    public static int narrativeHudHoldMinTicks() {
+        return NARRATIVE_HOLD_MIN_TICKS.get();
+    }
+
+    /** Прибавка паузы на каждый символ реплики сюжетного чата, в тиках. */
+    public static int narrativeHudHoldTicksPerChar() {
+        return NARRATIVE_HOLD_TICKS_PER_CHAR.get();
+    }
+
+    /** Максимум реплик в очереди сюжетного чата. */
+    public static int narrativeHudMaxQueue() {
+        return NARRATIVE_MAX_QUEUE.get();
     }
 
     public static int dialogueBarFill() {

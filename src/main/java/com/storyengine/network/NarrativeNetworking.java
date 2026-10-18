@@ -1,6 +1,7 @@
 package com.storyengine.network;
 
 import com.storyengine.narrative.SpeakerInfo;
+import com.storyengine.narrative.NarrativeStyle;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.network.PacketDistributor;
@@ -38,7 +39,13 @@ public final class NarrativeNetworking {
     }
 
     public static void sendToPlayers(Collection<ServerPlayer> players, String speaker, String iconId, Component message, int nameColor) {
-        S2CStoryChatPacket packet = new S2CStoryChatPacket(speaker, iconId, message, nameColor);
+        sendToPlayers(players, speaker, iconId, message, nameColor, NarrativeStyle.NORMAL);
+    }
+
+    public static void sendToPlayers(Collection<ServerPlayer> players, String speaker, String iconId,
+                                     Component message, int nameColor, NarrativeStyle style) {
+        S2CStoryChatPacket packet = new S2CStoryChatPacket(
+                List.of(new SpeakerInfo(speaker, iconId, nameColor)), message, style);
         sendToPlayers(players, packet);
     }
 

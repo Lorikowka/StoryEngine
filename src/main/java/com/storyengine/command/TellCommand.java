@@ -12,6 +12,7 @@ import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.storyengine.StoryEngineMod;
 import com.storyengine.narrative.NarrativeMessage;
+import com.storyengine.narrative.NarrativeStyle;
 import com.storyengine.narrative.SpeakerInfo;
 import com.storyengine.network.NarrativeNetworking;
 import com.mojang.logging.LogUtils;
@@ -31,7 +32,7 @@ import java.util.List;
 /**
  * Подкоманда {@code /story tell} и алиас {@code /storytell}:
  *
- *   /story tell <targets> <speaker> <icon> [color <hex>] <message>
+ *   /story tell <targets> <speaker> <icon> [whisper|thought] [color <hex>] <message>
  *   /story tell defaultcolor <hex>
  *
  * Аналог /tellraw, но с именем говорящего и иконкой NPC для Narrative HUD.
@@ -39,6 +40,7 @@ import java.util.List;
  *  - <speaker> - имя говорящего (string: одно слово без кавычек, либо
  *                "Голос за кадром" в кавычках, т.к. содержит пробелы).
  *  - <icon>    - имя файла иконки без .png ("old_man"), "none" - без иконки.
+ *  - whisper   - пометить реплику как шёпот; thought - оформить как мысль.
  *  - <hex>     - (опционально) цвет имени спикера в HEX, формат RRGGBB.
  *  - <message> - JSON-компонент текста, как в /tellraw (последний аргумент).
  */
@@ -74,7 +76,9 @@ public final class TellCommand {
         RequiredArgumentBuilder<CommandSourceStack, String> icon =
                 Commands.argument("icon", StringArgumentType.word())
                         .then(message)
-                        .then(colorBranch);
+                        .then(colorBranch)
+                        .then(styleBranch("whisper", NarrativeStyle.WHISPER))
+                        .then(styleBranch("thought", NarrativeStyle.THOUGHT));
 
         RequiredArgumentBuilder<CommandSourceStack, String> speaker =
                 Commands.argument("speaker", StringArgumentType.string()).then(icon);
@@ -110,17 +114,38 @@ public final class TellCommand {
                 "Цвет реплик игрока по умолчанию (в NarrativeLogScreen) установлен: " + hex);
     }
 
+    private static LiteralArgumentBuilder<CommandSourceStack> styleBranch(
+            String keyword, NarrativeStyle style) {
+        return Commands.literal(keyword)
+                .then(Commands.argument("message", ComponentArgument.textComponent())
+                        .executes(ctx -> run(ctx, NarrativeMessage.DEFAULT_NAME_COLOR, style)))
+                .then(Commands.literal("color")
+                        .then(Commands.argument("hex", StringArgumentType.word())
+                                .then(Commands.argument("message", ComponentArgument.textComponent())
+                                        .executes(ctx -> runWithColor(ctx, style)))));
+    }
+
     private static int runWithColor(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        return runWithColor(ctx, NarrativeStyle.NORMAL);
+    }
+
+    private static int runWithColor(CommandContext<CommandSourceStack> ctx, NarrativeStyle style)
+            throws CommandSyntaxException {
         String hex = StringArgumentType.getString(ctx, "hex");
         Integer color = parseHexColor(hex);
         if (color == null) {
             return CommandFeedback.fail(ctx.getSource(),
                     "Некорректный HEX-цвет '" + hex + "'. Ожидается формат RRGGBB, например FFAA00 (без пробелов, '#' необязателен).");
         }
-        return run(ctx, color);
+        return run(ctx, color, style);
     }
 
     private static int run(CommandContext<CommandSourceStack> ctx, int nameColor) throws CommandSyntaxException {
+        return run(ctx, nameColor, NarrativeStyle.NORMAL);
+    }
+
+    private static int run(CommandContext<CommandSourceStack> ctx, int nameColor, NarrativeStyle style)
+            throws CommandSyntaxException {
         CommandSourceStack source = ctx.getSource();
         Collection<ServerPlayer> targets = EntityArgument.getPlayers(ctx, "targets");
         String speaker = StringArgumentType.getString(ctx, "speaker").trim();
@@ -131,7 +156,7 @@ public final class TellCommand {
             return CommandFeedback.fail(source, "Не найдено ни одного целевого игрока.");
         }
 
-        NarrativeNetworking.sendToPlayers(targets, speaker, icon, message, nameColor);
+        NarrativeNetworking.sendToPlayers(targets, speaker, icon, message, nameColor, style);
 
         return CommandFeedback.success(source,
                 "Сообщение от '" + speaker + "' отправлено игрокам: " + targets.size());

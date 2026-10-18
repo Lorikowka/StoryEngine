@@ -1,0 +1,312 @@
+package com.storyengine.api;
+
+import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
+import com.storyengine.narrative.NarrativeMessage;
+import com.storyengine.narrative.NarrativeStyle;
+import com.storyengine.network.NarrativeNetworking;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerPlayer;
+
+import java.util.Collection;
+import java.util.List;
+
+/**
+ * Публичный фасад Story Engine для вызова из внешнего кода: других модов
+ * и скриптов HollowEngine (.se.kts).
+ *
+ * <h2>Как это связано с HollowEngine</h2>
+ * Скрипты HollowEngine компилируются с classpath, в который входят <b>все
+ * установленные моды</b> (см. {@code AbstractHollowScriptConfiguration}), поэтому
+ * из скрипта достаточно обычного импорта:
+ *
+ * <pre>{@code
+ * import com.storyengine.api.StoryApi
+ *
+ * // ... где-то в теле скрипта:
+ * StoryApi.tell(server, "Орен", "oren", "Текст", 0x36612F)
+ * }</pre>
+ *
+ * <b>Важно про момент срабатывания.</b> Тело скрипта HollowEngine исполняется
+ * один раз — в момент сборки дерева узлов, а не по ходу сюжета. Поэтому
+ * «немедленные» методы этого класса ({@link #tell}, {@link #quest} и т.п.),
+ * вызванные прямо в теле, сработают на старте скрипта. Чтобы реплика/квест
+ * сработали в нужной точке сюжета, оборачивайте вызов в узел:
+ *
+ * <pre>{@code
+ * execute { StoryApi.tellCommand("Орен", "oren", "36612F", "Текст") }
+ * execute { StoryApi.questStartCommand("@a", "routine_work") }
+ * }</pre>
+ *
+ * Для «прямой» отправки (без строк-команд) есть {@link #tell(Collection, String, String, String, int, NarrativeStyle)};
+ * он уместен из сетевого кода, обработчиков событий и других модов.
+ *
+ * <p>Все методы рассчитаны на вызов из серверного потока.</p>
+ */
+public final class StoryApi {
+
+    private StoryApi() {
+    }
+
+    // ==================================================================
+    //  Сюжетный чат (Narrative HUD) — прямая отправка
+    // ==================================================================
+
+    /** Отправить реплику всем игрокам сервера. */
+    public static void tell(MinecraftServer server, String speaker, String icon, String text) {
+        tell(server, speaker, icon, text, NarrativeMessage.DEFAULT_NAME_COLOR);
+    }
+
+    /** Отправить реплику всем игрокам сервера с заданным цветом имени. */
+    public static void tell(MinecraftServer server, String speaker, String icon, String text, int nameColor) {
+        tell(server, speaker, icon, text, nameColor, NarrativeStyle.NORMAL);
+    }
+
+    /** Отправить реплику всем игрокам сервера с цветом и стилем. */
+    public static void tell(MinecraftServer server, String speaker, String icon, String text,
+                            int nameColor, NarrativeStyle style) {
+        if (server == null) {
+            return;
+        }
+        tell(server.getPlayerList().getPlayers(), speaker, icon, text, nameColor, style);
+    }
+
+    /** Отправить реплику списку игроков. */
+    public static void tell(Collection<ServerPlayer> players, String speaker, String icon, String text) {
+        tell(players, speaker, icon, text, NarrativeMessage.DEFAULT_NAME_COLOR, NarrativeStyle.NORMAL);
+    }
+
+    /** Отправить реплику списку игроков с заданным цветом имени. */
+    public static void tell(Collection<ServerPlayer> players, String speaker, String icon, String text, int nameColor) {
+        tell(players, speaker, icon, text, nameColor, NarrativeStyle.NORMAL);
+    }
+
+    /** Отправить реплику списку игроков с цветом и стилем. */
+    public static void tell(Collection<ServerPlayer> players, String speaker, String icon, String text,
+                            int nameColor, NarrativeStyle style) {
+        if (players == null || players.isEmpty()) {
+            return;
+        }
+        NarrativeNetworking.sendToPlayers(players, speaker, icon, Component.literal(text == null ? "" : text),
+                nameColor, style == null ? NarrativeStyle.NORMAL : style);
+    }
+
+    /** Отправить реплику одному игроку. */
+    public static void tellTo(ServerPlayer player, String speaker, String icon, String text, int nameColor) {
+        if (player == null) {
+            return;
+        }
+        tell(List.of(player), speaker, icon, text, nameColor, NarrativeStyle.NORMAL);
+    }
+
+    /** Реплика в режиме «мыслей» (курсив + особый оттенок иконки). */
+    public static void thought(MinecraftServer server, String speaker, String icon, String text, int nameColor) {
+        tell(server, speaker, icon, text, nameColor, NarrativeStyle.THOUGHT);
+    }
+
+    /** Реплика в режиме «шёпота» (добавляет «(шепотом)»). */
+    public static void whisper(MinecraftServer server, String speaker, String icon, String text, int nameColor) {
+        tell(server, speaker, icon, text, nameColor, NarrativeStyle.WHISPER);
+    }
+
+    // ==================================================================
+    //  Команды /story (немедленное исполнение)
+    // ==================================================================
+
+    /** Выполнить произвольную команду от имени консоли сервера (без ведущего слэша). */
+    public static int command(MinecraftServer server, String command) {
+        if (server == null || command == null || command.isBlank()) {
+            return 0;
+        }
+        CommandSourceStack source = server.createCommandSourceStack().withSuppressedOutput();
+        return server.getCommands().performPrefixedCommand(source, command);
+    }
+
+    /** {@code /story quest ...} */
+    public static int quest(MinecraftServer server, String args) {
+        return command(server, "story quest " + args);
+    }
+
+    /** {@code /story dialogue ...} */
+    public static int dialogue(MinecraftServer server, String args) {
+        return command(server, "story dialogue " + args);
+    }
+
+    /** {@code /story trigger ...} */
+    public static int trigger(MinecraftServer server, String args) {
+        return command(server, "story trigger " + args);
+    }
+
+    /** {@code /story menu ...} */
+    public static int menu(MinecraftServer server, String args) {
+        return command(server, "story menu " + args);
+    }
+
+    // ---- Типизированные обёртки квестов ----
+
+    /** {@code /story quest start <player> <id>} */
+    public static int questStart(MinecraftServer server, ServerPlayer player, String questId) {
+        return quest(server, "start " + name(player) + " " + questId);
+    }
+
+    /** {@code /story quest complete <player> <id>} */
+    public static int questComplete(MinecraftServer server, ServerPlayer player, String questId) {
+        return quest(server, "complete " + name(player) + " " + questId);
+    }
+
+    /** {@code /story quest fail <player> <id>} */
+    public static int questFail(MinecraftServer server, ServerPlayer player, String questId) {
+        return quest(server, "fail " + name(player) + " " + questId);
+    }
+
+    /** {@code /story quest reset <player> <id>} */
+    public static int questReset(MinecraftServer server, ServerPlayer player, String questId) {
+        return quest(server, "reset " + name(player) + " " + questId);
+    }
+
+    /** {@code /story quest task complete <player> <questId> <taskId>} */
+    public static int questTaskComplete(MinecraftServer server, ServerPlayer player, String questId, String taskId) {
+        return quest(server, "task complete " + name(player) + " " + questId + " " + taskId);
+    }
+
+    /** {@code /story quest create <id> <title>} */
+    public static int questCreate(MinecraftServer server, String questId, String title) {
+        return quest(server, "create " + questId + " " + title);
+    }
+
+    /** {@code /story quest notify "<title>" <text>} — тост всем игрокам. */
+    public static int questNotify(MinecraftServer server, String title, String text) {
+        return quest(server, "notify " + new JsonPrimitive(title == null ? "" : title) + " " + text);
+    }
+
+    // ---- Типизированные обёртки диалогов ----
+
+    /** {@code /story dialogue start <player> <id> [nodeId]} */
+    public static int dialogueStart(MinecraftServer server, ServerPlayer player, String dialogueId, String nodeId) {
+        String cmd = "start " + name(player) + " " + dialogueId;
+        if (nodeId != null && !nodeId.isBlank()) {
+            cmd = cmd + " " + nodeId;
+        }
+        return dialogue(server, cmd);
+    }
+
+    /** {@code /story dialogue stop <player>} */
+    public static int dialogueStop(MinecraftServer server, ServerPlayer player) {
+        return dialogue(server, "stop " + name(player));
+    }
+
+    // ==================================================================
+    //  Строители строк-команд для узла execute { } в HollowEngine
+    // ==================================================================
+
+    /**
+     * Собрать команду {@code story tell @a "speaker" icon color <hex> <json>}
+     * с корректным экранированием текста — для узла {@code execute { ... }}.
+     */
+    public static String tellCommand(String speaker, String icon, String colorHex, String text) {
+        return tellCommand("@a", speaker, icon, colorHex, text, false, NarrativeStyle.NORMAL);
+    }
+
+    /** То же, но с курсивом (мысли). */
+    public static String tellThoughtCommand(String speaker, String icon, String colorHex, String text) {
+        return tellCommand("@a", speaker, icon, colorHex, text, true, NarrativeStyle.THOUGHT);
+    }
+
+    /** Полная версия строителя команды реплики. */
+    public static String tellCommand(String targets, String speaker, String icon, String colorHex,
+                                     String text, boolean italic, NarrativeStyle style) {
+        JsonObject json = new JsonObject();
+        json.addProperty("text", text == null ? "" : text);
+        if (italic) {
+            json.addProperty("italic", true);
+        }
+
+        StringBuilder sb = new StringBuilder("story tell ");
+        sb.append(targets == null || targets.isBlank() ? "@a" : targets).append(' ');
+        sb.append(new JsonPrimitive(speaker == null ? "" : speaker)).append(' ');
+        sb.append(icon == null || icon.isBlank() ? "none" : icon).append(' ');
+
+        if (style == NarrativeStyle.WHISPER) {
+            sb.append("whisper ");
+        } else if (style == NarrativeStyle.THOUGHT) {
+            sb.append("thought ");
+        }
+
+        String hex = normalizeHex(colorHex);
+        if (hex != null) {
+            sb.append("color ").append(hex).append(' ');
+        }
+
+        sb.append(json);
+        return sb.toString();
+    }
+
+    /** {@code story quest start <targets> <id>}. */
+    public static String questStartCommand(String targets, String questId) {
+        return "story quest start " + orDefault(targets, "@a") + " " + questId;
+    }
+
+    /** {@code story quest complete <targets> <id>}. */
+    public static String questCompleteCommand(String targets, String questId) {
+        return "story quest complete " + orDefault(targets, "@a") + " " + questId;
+    }
+
+    /** {@code story quest fail <targets> <id>}. */
+    public static String questFailCommand(String targets, String questId) {
+        return "story quest fail " + orDefault(targets, "@a") + " " + questId;
+    }
+
+    /** {@code story quest reset <targets> <id>}. */
+    public static String questResetCommand(String targets, String questId) {
+        return "story quest reset " + orDefault(targets, "@a") + " " + questId;
+    }
+
+    /** {@code story quest task complete <targets> <questId> <taskId>}. */
+    public static String questTaskCompleteCommand(String targets, String questId, String taskId) {
+        return "story quest task complete " + orDefault(targets, "@a") + " " + questId + " " + taskId;
+    }
+
+    // ==================================================================
+    //  Утилиты
+    // ==================================================================
+
+    /** Разобрать hex-цвет вида «36612F» / «#36612F» в int 0xRRGGBB. Неверный формат → жёлтый. */
+    public static int hexColor(String hex) {
+        String normalized = normalizeHex(hex);
+        return normalized == null ? NarrativeMessage.DEFAULT_NAME_COLOR : Integer.parseInt(normalized, 16);
+    }
+
+    /** Нормализовать hex-цвет к 6 цифрам без «#», либо null. */
+    private static String normalizeHex(String hex) {
+        if (hex == null) {
+            return null;
+        }
+        String value = hex.trim();
+        if (value.startsWith("#")) {
+            value = value.substring(1);
+        }
+        if (value.length() == 8) {
+            // ARGB -> RGB (старшая альфа отбрасывается, как в команде /story tell color)
+            value = value.substring(2);
+        }
+        if (value.length() != 6) {
+            return null;
+        }
+        for (int i = 0; i < value.length(); i++) {
+            if (Character.digit(value.charAt(i), 16) < 0) {
+                return null;
+            }
+        }
+        return value.toUpperCase();
+    }
+
+    private static String name(ServerPlayer player) {
+        return player == null ? "@a" : player.getGameProfile().getName();
+    }
+
+    private static String orDefault(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value;
+    }
+}

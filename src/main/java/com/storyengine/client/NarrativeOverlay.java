@@ -6,6 +6,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.storyengine.StoryEngineMod;
 import com.storyengine.narrative.NarrativeChatManager;
 import com.storyengine.narrative.NarrativeMessage;
+import com.storyengine.narrative.NarrativeStyle;
 import com.storyengine.narrative.SpeakerInfo;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -102,34 +103,47 @@ public final class NarrativeOverlay {
         }
 
         Component fullText = message.getText();
-        List<FormattedCharSequence> fullLines = font.split(fullText, TEXT_WRAP_WIDTH);
 
-        MutableComponent speakerComponent = null;
-        int nameWidth = 0;
         boolean hasSpeaker = message.getSpeakers().stream()
                 .anyMatch(speaker -> speaker.name() != null && !speaker.name().trim().isEmpty());
+        Component prefix = Component.empty();
         if (hasSpeaker) {
             Style textStyle = Style.EMPTY.withColor(TextColor.fromRgb(TEXT_COLOR));
-            // Скобки красим в цвет первого спикера. Корневой стиль компонента тоже
-            // берёт этот цвет: иначе символы без явного стиля наследуют белый
-            // цвет родителя, и "[Name]:" выглядит покрашенным не полностью.
-            Style bracketStyle = Style.EMPTY.withColor(
-                    TextColor.fromRgb(message.getSpeakers().get(0).nameColor()));
-            speakerComponent = Component.literal("[").withStyle(bracketStyle);
-            for (int i = 0; i < message.getSpeakers().size(); i++) {
-                SpeakerInfo speaker = message.getSpeakers().get(i);
-                String name = speaker.name() == null ? "" : speaker.name().trim();
-                if (i > 0) {
-                    speakerComponent = speakerComponent.append(Component.literal(", ").withStyle(textStyle));
+            int firstColor = message.getSpeakers().get(0).nameColor();
+            Style firstStyle = Style.EMPTY.withColor(TextColor.fromRgb(firstColor));
+
+            MutableComponent speakerComponent;
+            if (message.getStyle() == NarrativeStyle.WHISPER) {
+                // "[Имя] [шепотом]" - всё одним цветом (цвет первого спикера)
+                StringBuilder names = new StringBuilder();
+                for (SpeakerInfo speaker : message.getSpeakers()) {
+                    if (names.length() > 0)
+                        names.append(", ");
+                    names.append(speaker.name() == null ? "" : speaker.name().trim());
                 }
-                Style nameStyle = Style.EMPTY.withColor(TextColor.fromRgb(speaker.nameColor()));
-                speakerComponent = speakerComponent.append(Component.literal(name).withStyle(nameStyle));
+                speakerComponent = Component.literal("[" + names + "] [шепотом]").withStyle(firstStyle);
+            } else {
+                // Обычный формат: [Имя1, Имя2] - как раньше
+                speakerComponent = Component.literal("[").withStyle(firstStyle);
+                for (int i = 0; i < message.getSpeakers().size(); i++) {
+                    SpeakerInfo speaker = message.getSpeakers().get(i);
+                    String name = speaker.name() == null ? "" : speaker.name().trim();
+                    if (i > 0) {
+                        speakerComponent.append(Component.literal(", ").withStyle(textStyle));
+                    }
+                    speakerComponent.append(Component.literal(name)
+                            .withStyle(Style.EMPTY.withColor(TextColor.fromRgb(speaker.nameColor()))));
+                }
+                speakerComponent.append(Component.literal("]").withStyle(firstStyle));
             }
-            speakerComponent = speakerComponent
-                    .append(Component.literal("]").withStyle(bracketStyle))
-                    .append(Component.literal(":").withStyle(textStyle));
-            nameWidth = font.width(speakerComponent);
+            speakerComponent.append(Component.literal(": ").withStyle(textStyle));
+            prefix = speakerComponent;
         }
+        int prefixLength = prefix.getString().length();
+
+        // Имя + реплика - единый компонент, поэтому перенос идёт под имя
+        MutableComponent combined = Component.empty().append(prefix).append(fullText);
+        List<FormattedCharSequence> fullLines = font.split(combined, TEXT_WRAP_WIDTH);
 
         // Имя отодвинуто от иконок отдельным зазором (ICON_NAME_GAP), чтобы
         // подписи не примыкали к последней иконке впритык.
@@ -142,23 +156,17 @@ public final class NarrativeOverlay {
         textContentWidth = Math.max(textContentWidth, MIN_TEXT_WIDTH);
 
         // Расчет общей ширины плашки
-        int boxWidth =
-                iconAreaWidth
-                + iconNameGap
-                + nameWidth
-                + (hasSpeaker ? NAME_GAP : 0)
-                + textContentWidth
-                + PADDING * 2;
+        int boxWidth = iconAreaWidth
+            + iconNameGap
+            + textContentWidth
+            + PADDING * 2;
 
         int boxLeft = screenWidth / 2 - boxWidth / 2 + RIGHT_SHIFT;
 
-        int textX =
-                boxLeft
-                + PADDING
-                + iconAreaWidth
-                + iconNameGap
-                + nameWidth
-                + (hasSpeaker ? NAME_GAP : 0);
+        int textX = boxLeft
+            + PADDING
+            + iconAreaWidth
+            + iconNameGap;
 
         // Реальная высота блока текста (высота строки майна 9px + интервалы)
         int textHeight = (fullLines.size() - 1) * LINE_HEIGHT + 9;
@@ -174,34 +182,38 @@ public final class NarrativeOverlay {
         int iconTop = contentTop + (contentHeight - ICON_SIZE) / 2;
         int textStartY = contentTop + (contentHeight - textHeight) / 2;
         // Имя спикера — на первой (верхней) строке, без вертикального центрирования
-        int nameY = textStartY;
 
         // 1. Отрисовка подложки
         TextureBlitHelper.fillBox(poseStack, boxLeft, boxTop, boxLeft + boxWidth, boxBottom, BACKGROUND_COLOR);
 
         // 2. Отрисовка иконок (по центру Y)
         if (!icons.isEmpty()) {
-            RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+            RenderSystem.enableBlend();
+            RenderSystem.defaultBlendFunc();
             int iconX = boxLeft + PADDING;
             for (String iconId : icons) {
+                if (message.getStyle() == NarrativeStyle.THOUGHT) {
+                    RenderSystem.setShaderColor(0.72F, 0.42F, 1.0F, 0.52F);
+                } else {
+                    RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+                }
                 DynamicHeadManager.blitIcon(poseStack, iconId, iconX, iconTop, ICON_SIZE);
                 iconX += ICON_SIZE + ICON_GAP;
             }
+            RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
         }
-
-        // 3. Отрисовка имени ([Name]: — двоеточие в цвете текста, по первой строке)
-        if (hasSpeaker) {
-            int nameX = boxLeft + PADDING + iconAreaWidth + iconNameGap;
-            font.drawShadow(poseStack, speakerComponent, nameX, nameY, TEXT_COLOR);
-        }
-
-        // 4. Отрисовка текста (построчно от textStartY)
-        Component visibleText = buildVisibleText(fullText);
-        List<FormattedCharSequence> visibleLines = font.split(visibleText, TEXT_WRAP_WIDTH);
+        // 3. Отрисовка: имя видно сразу, реплика печатается
+        boolean revealed = NarrativeChatManager.isFullyRevealed();
+        int[] budget = { NarrativeChatManager.getVisibleCharCount() + prefixLength };
 
         int currentLineY = textStartY;
-        for (FormattedCharSequence line : visibleLines) {
-            font.drawShadow(poseStack, line, textX, currentLineY, TEXT_COLOR);
+        for (FormattedCharSequence line : fullLines) {
+            if (revealed) {
+                font.drawShadow(poseStack, line, textX, currentLineY, TEXT_COLOR);
+            } else {
+                if (budget[0] <= 0) break;
+                font.drawShadow(poseStack, truncate(line, budget), textX, currentLineY, TEXT_COLOR);
+            }
             currentLineY += LINE_HEIGHT;
         }
     }
@@ -211,36 +223,36 @@ public final class NarrativeOverlay {
      *
      * Раньше здесь было full.getString().substring(0, visible) + setStyle(root),
      * что давало два бага:
-     *  1) getString() "выравнивает" все вложенные компоненты в одну строку, поэтому
-     *     индивидуальные стили (цвета реплик NPC, начертания) терялись - оставался
-     *     только стиль корня. Сейчас обходим дерево через visit(), который
-     *     отдаёт уже разрешённый стиль для каждого куска.
-     *  2) substring() мог разрезать сурогатную пару (эмодзи) пополам, из-за чего
-     *     последний символ мигал квадратом. Теперь не отдаём high-surrogate
-     *     без пары - символ просто появится на следующем шаге.
+     * 1) getString() "выравнивает" все вложенные компоненты в одну строку, поэтому
+     * индивидуальные стили (цвета реплик NPC, начертания) терялись - оставался
+     * только стиль корня. Сейчас обходим дерево через visit(), который
+     * отдаёт уже разрешённый стиль для каждого куска.
+     * 2) substring() мог разрезать сурогатную пару (эмодзи) пополам, из-за чего
+     * последний символ мигал квадратом. Теперь не отдаём high-surrogate
+     * без пары - символ просто появится на следующем шаге.
      */
-    private static Component buildVisibleText(Component full) {
-        if (NarrativeChatManager.isFullyRevealed()) {
-            return full;
+    private static Component truncate(FormattedCharSequence line, int[] budget) {
+        MutableComponent out = Component.empty();
+        StringBuilder sb = new StringBuilder();
+        Style[] cur = { null };
+
+        line.accept((index, style, codePoint) -> {
+            if (budget[0] <= 0) {
+                return false;
+            }
+            budget[0] -= Character.charCount(codePoint);
+            if (cur[0] != null && !cur[0].equals(style)) {
+                out.append(Component.literal(sb.toString()).setStyle(cur[0]));
+                sb.setLength(0);
+            }
+            cur[0] = style;
+            sb.appendCodePoint(codePoint);
+            return true;
+        });
+
+        if (sb.length() > 0) {  
+            out.append(Component.literal(sb.toString()).setStyle(cur[0]));
         }
-        int[] budget = {NarrativeChatManager.getVisibleCharCount()};
-        MutableComponent result = Component.empty();
-        full.visit((style, text) -> {
-            if (budget[0] <= 0 || text.isEmpty()) {
-                return Optional.empty();
-            }
-            int take = Math.min(budget[0], text.length());
-            if (take < text.length() && Character.isHighSurrogate(text.charAt(take - 1))) {
-                take--;
-            }
-            if (take <= 0) {
-                return Optional.empty();
-            }
-            budget[0] -= take;
-            result.append(Component.literal(text.substring(0, take)).setStyle(style));
-            // Бюджет исчерпан - visit() останавливается, вернув "остаток" текста.
-            return budget[0] > 0 ? Optional.empty() : Optional.of(text.substring(take));
-        }, Style.EMPTY);
-        return result;
+        return out;
     }
 }
