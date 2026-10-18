@@ -18,6 +18,9 @@ import com.storyengine.quest.QuestTask;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Registry;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.StringTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
@@ -26,6 +29,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.items.IItemHandler;
@@ -644,6 +648,84 @@ public final class StoryApi {
             return null;
         }
         return blockEntity.getCapability(ForgeCapabilities.ITEM_HANDLER).resolve().orElse(null);
+    }
+
+    // ==================================================================
+    //  Выдача книг напрямую (без /give)
+    // ==================================================================
+
+    /**
+     * Выдать книгу всем игрокам онлайн: подписанную ({@code written_book}) или с пером
+     * ({@code writable_book}). Страницы — обычные текстовые строки, переводы строк внутри
+     * страницы сохраняются (абзацы, списки). Не идёт через команду {@code /give}, поэтому
+     * не ломается на спецсимволах и переносах.
+     *
+     * <p>Удобно гонять из узла {@code next { }} со случайным целым вариантом книги:
+     * <pre>{@code
+     * next { StoryApi.giveBook("Отчёт за квартал", "Отчёт", "Бухгалтерия", variants.random(), true) }
+     * }</pre>
+     *
+     * @param name   display-имя предмета — по нему бочка принимает документ
+     *               ({@link #consumeNamedItem}); точное имя из сюжета.
+     * @param title  заголовок подписанной книги (для writable_book игнорируется).
+     * @param author автор подписанной книги (для writable_book игнорируется).
+     * @param pages  список страниц; каждая строка — содержимое одной страницы.
+     * @param signed {@code true} — подписанная книга, {@code false} — книга с пером.
+     */
+    public static void giveBook(String name, String title, String author, List<String> pages, boolean signed) {
+        MinecraftServer server = currentServer();
+        if (server == null) {
+            return;
+        }
+        giveBook(server.getPlayerList().getPlayers(), name, title, author, pages, signed);
+    }
+
+    /** Выдать книгу заданному списку игроков. */
+    public static void giveBook(Collection<ServerPlayer> players, String name, String title, String author,
+                                List<String> pages, boolean signed) {
+        if (players == null || players.isEmpty()) {
+            return;
+        }
+        ItemStack stack = makeBook(name, title, author, pages, signed);
+        if (stack.isEmpty()) {
+            return;
+        }
+        for (ServerPlayer player : players) {
+            if (!player.getInventory().add(stack.copy())) {
+                player.drop(stack.copy(), false);
+            }
+        }
+    }
+
+    /** Собрать ItemStack книги с нужным display-именем и страницами. */
+    private static ItemStack makeBook(String name, String title, String author, List<String> pages, boolean signed) {
+        ItemStack stack = new ItemStack(signed ? Items.WRITTEN_BOOK : Items.WRITABLE_BOOK);
+        CompoundTag tag = stack.getOrCreateTag();
+
+        // display.Name — JSON-компонент, чтобы имя отображалось как задумано.
+        if (name != null && !name.isEmpty()) {
+            CompoundTag display = new CompoundTag();
+            display.putString("Name", Component.Serializer.toJson(Component.literal(name)));
+            tag.put("display", display);
+        }
+
+        // Страницы: каждая строка превращается в JSON-компонент (переводы строк рендерятся).
+        ListTag pageList = new ListTag();
+        if (pages != null) {
+            for (String page : pages) {
+                pageList.add(StringTag.valueOf(
+                        Component.Serializer.toJson(Component.literal(page == null ? "" : page))));
+            }
+        }
+        tag.put("pages", pageList);
+
+        if (signed) {
+            tag.putString("title", title == null ? "" : title);
+            tag.putString("author", author == null ? "" : author);
+            tag.putInt("generation", 0);
+            tag.putBoolean("resolved", true);
+        }
+        return stack;
     }
 
     // ---- Внутренние помощники прямого API ----
