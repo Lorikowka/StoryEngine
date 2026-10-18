@@ -159,8 +159,8 @@ Story Engine — это модульный инструментарий для �
 | `/story dialogue stop <player>` | Прервать активный диалог. |
 
 Диалоги описываются JSON в `config/story_engine/story dialogues/` (папка =
-диалог, файл = узел). Подробности и формат узла/ответов/условий — в
-`docs/DIALOGUE_SYSTEM.md`.
+диалог, файл = узел). Шаблон узла с комментариями создаёт команда
+`/story dialogue create` — формат виден прямо в нём.
 
 ### `/story trigger` — триггеры
 
@@ -331,13 +331,41 @@ Config**:
 
 ---
 
+## Скриптовый API (HollowEngine)
+
+Для сюжетных скриптов HollowEngine (`scripts/Start/*.se.kts`) мод даёт
+фасад `com.storyengine.api.StoryApi` — прямые вызовы из `execute { }` /
+`next { }` без построения строк-команд:
+
+- **реплики** Narrative HUD: `tell` / `thought` / `whisper`, стили `NarrativeStyle`;
+- **квесты**: `ensureQuest`, `addManualTask` / `addLocationTask`, `start` /
+  `complete` / `fail` / `reset`, `completeTask`, `notify`;
+- **мини-игра**: `barrelHasNamedItem` / `consumeNamedItem` — проверка и
+  потребление документа в бочке **по точному имени** предмета;
+- **книги**: `giveBook` — подписанная книга или книга с пером, случайный
+  целый вариант, из любого узла сценария;
+- **триггеры**: `upsertTrigger` / `createTrigger` / `deleteTrigger` /
+  `setTriggerEnabled` / `reloadTriggers`, `startScript` (запуск `.se.kts`);
+- **interaction.json**: `addNoHintBlock` / `removeNoHintBlock` /
+  `addNoInteractBlock` / `removeNoInteractBlock` / `reloadInteractionConfig`;
+- **тумблеры для кат-сцен**: `setInteractionHintsEnabled` (кнопка F и
+  подсказки), `setQuestNotificationsEnabled` (авто-оповещения квестов).
+
+Полный справочник с примерами — `STORY_ENGINE_API_RU.md` в папке
+скриптов HollowEngine.
+
+---
+
 ## Структура конфигов
 
 ```
 config/story_engine/
 ├── quests/                 # JSON-описания квестов
+├── story dialogues/        # JSON-диалоги (папка = диалог, файл = узел)
+├── triggers/               # JSON-триггеры
 ├── heads/                  # PNG-иконки NPC для /story tell
 ├── menu/                   # PNG-текстуры меню (кастомизация)
+├── interaction.json        # списки блоков no_hints / no_interact
 ├── narrative_config.json
 └── story_engine-client.toml   # настройки кастомизации меню
 ```
@@ -368,10 +396,32 @@ config/story_engine/
 
 ---
 
+## История версий
+
+Все версии закоммичены отдельными коммитами и помечены тегами
+(см. GitHub → Tags).
+
+- `1.1.1` — стабильная база: квесты, narrative HUD, диалоги, подсказки взаимодействия;
+- `1.2.0` — фасад `StoryApi`, стили реплик `NarrativeStyle`;
+- `1.2.1` — прямой API квестов из скриптов, F-подсказка «Поговорить» для NPC;
+- `1.2.2` — бочки: `barrelHasNamedItem` / `consumeNamedItem` (проверка по имени);
+- `1.2.3` — `giveBook`: выдача книг прямо из скрипта;
+- `1.2.4` — `startScript` и управление триггерами из скриптов;
+- `1.2.5` — `setInteractionHintsEnabled`: глобальный тумблер F-подсказок;
+- `1.2.6` — `config/story_engine/interaction.json`: списки `no_hints` / `no_interact` + API;
+- `1.2.7` — `setQuestNotificationsEnabled`: тумблер оповещений квестов;
+- `1.2.8` — фикс мировых колец-маркеров: обнаружение близких целей
+  (общий счётчик с двумя инкрементами) не срабатывал с самого появления
+  фичи — кольца не рисовались; теперь отдельные счётчики для скана
+  и crosshair-пакета.
+
+---
+
 ## Заметки разработчика
 
-- Подробности реализации каждой системы — в папке `docs/`
-  (`QUEST_SYSTEM.md`, `NARRATIVE_HUD.md`, `DIALOGUE_SYSTEM.md`, `DEVLOG-2026-08-ui.md`).
+- Документация вынесена из репозитория: актуальные гайды по скриптингу
+  и справочник API живут в папке скриптов HollowEngine
+  (`01_BASICS_RU.md` … `08_IMPORTS_RU.md`, `STORY_ENGINE_API_RU.md`).
 - Квесты синхронизируются через `S2CSyncQuestDataPacket` (полный снимок
   квестов + статус игрока).
 - Иконки NPC регистрируются как `DynamicTexture` под
@@ -383,5 +433,5 @@ config/story_engine/
 
 ---
 
-*Story Engine · версия 1.1.1 · Forge 1.19.2 · автор Lorikowka*
+*Story Engine · версия 1.2.8 · Forge 1.19.2 · автор Lorikowka*
 
