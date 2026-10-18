@@ -234,6 +234,114 @@ public final class StoryApi {
     }
 
     // ==================================================================
+    //  Скрипты HollowEngine и триггеры (v1.2.4)
+    // ==================================================================
+
+    /**
+     * Запустить скрипт HollowEngine (.se.kts) для всех игроков онлайн —
+     * обёртка над командой {@code /hollowengine start-script @a <script>}.
+     * Внутри скрипта для запуска другого скрипта есть и узлы
+     * {@code startScript}/{@code restartScript}.
+     *
+     * @param script путь к файлу вида {@code chapter2.se.kts}
+     *               (как предлагает автодополнение команды)
+     * @return результат команды (0 — не сработало: файла нет и т.п.)
+     */
+    public static int startScript(MinecraftServer server, String script) {
+        if (server == null || script == null || script.isBlank()) {
+            return 0;
+        }
+        return command(server, "hollowengine start-script @a " + script);
+    }
+
+    /** Запустить скрипт HollowEngine для одного игрока. */
+    public static int startScript(MinecraftServer server, ServerPlayer player, String script) {
+        if (server == null || script == null || script.isBlank()) {
+            return 0;
+        }
+        return command(server, "hollowengine start-script " + name(player) + " " + script);
+    }
+
+    /** Запустить скрипт HollowEngine для заданного списка игроков (по имени). */
+    public static int startScript(MinecraftServer server, Collection<ServerPlayer> players, String script) {
+        if (server == null || script == null || script.isBlank()
+                || players == null || players.isEmpty()) {
+            return 0;
+        }
+        int result = 0;
+        for (ServerPlayer player : players) {
+            result = command(server, "hollowengine start-script " + name(player) + " " + script);
+        }
+        return result;
+    }
+
+    /**
+     * Перечитать все JSON-триггеры с диска (аналог {@code /story trigger reload}).
+     * Ошибки загрузки — в логе и в {@code /story trigger reload}.
+     */
+    public static void reloadTriggers() {
+        StoryEngineMod.TRIGGER_MANAGER.reload();
+    }
+
+    /**
+     * Включить/отключить триггер: переписывает поле {@code enabled} в его
+     * JSON-файле и перезагружает кэш (аналог {@code /story trigger enable|disable}).
+     *
+     * @return {@code false} — триггера нет на диске
+     */
+    public static boolean setTriggerEnabled(String id, boolean enabled) {
+        return StoryEngineMod.TRIGGER_MANAGER.setEnabled(id, enabled);
+    }
+
+    /**
+     * Создать шаблон-файл триггера {@code triggers/<id>.json}
+     * (аналог {@code /story trigger create <id> <event>}).
+     *
+     * @param eventName {@code interact_block} / {@code interact_entity} /
+     *                  {@code quest_change} / {@code dialogue_finish}
+     * @return {@code false} — неизвестное событие или файл уже существует
+     */
+    public static boolean createTrigger(String id, String eventName) {
+        if (eventName == null) {
+            return false;
+        }
+        return com.storyengine.trigger.TriggerEvent.byId(eventName)
+                .map(event -> StoryEngineMod.TRIGGER_MANAGER.createTemplate(id, event).isPresent())
+                .orElse(false);
+    }
+
+    /** Удалить триггер: JSON-файл + кэш (аналог {@code /story trigger delete}). */
+    public static boolean deleteTrigger(String id) {
+        return StoryEngineMod.TRIGGER_MANAGER.delete(id);
+    }
+
+    /**
+     * Создать/перезаписать триггер из JSON-объекта — та же схема, что в файле
+     * {@code config/story_engine/triggers/<id>.json}: пишет файл и перезагружает
+     * кэш. Удобно определять F-взаимодействия прямо из скрипта:
+     *
+     * <pre>{@code
+     * val trigger = JsonObject().apply {
+     *     addProperty("id", "open_door")
+     *     addProperty("event", "interact_block")
+     *     addProperty("target_tag", "secret_door")
+     *     addProperty("hint_label", "[F] Открыть дверь")
+     *     add("actions", JsonArray().apply {
+     *         add(JsonObject().apply { addProperty("type", "start_script")
+     *                                  addProperty("script", "secret_room.se.kts") })
+     *     })
+     * }
+     * next { StoryApi.upsertTrigger(trigger) }
+     * }</pre>
+     *
+     * @return {@code true} — файл записан и триггер активен; ошибки схемы
+     *         смотрите в логе / {@code /story trigger reload}
+     */
+    public static boolean upsertTrigger(JsonObject definition) {
+        return StoryEngineMod.TRIGGER_MANAGER.saveTrigger(definition);
+    }
+
+    // ==================================================================
     //  Строители строк-команд для узла execute { } в HollowEngine
     // ==================================================================
 

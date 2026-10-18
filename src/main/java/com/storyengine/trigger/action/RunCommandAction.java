@@ -4,9 +4,6 @@ import com.google.gson.JsonObject;
 import com.storyengine.trigger.ActionStatus;
 import com.storyengine.trigger.TriggerAction;
 import com.storyengine.trigger.TriggerContext;
-import net.minecraft.commands.CommandSourceStack;
-import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.level.ServerPlayer;
 
 /**
  * Действие {@code run_command}: выполнить произвольную команду от имени
@@ -33,22 +30,9 @@ public final class RunCommandAction implements TriggerAction {
 
     @Override
     public ActionStatus execute(TriggerContext context) {
-        ServerPlayer player = context.player();
-        if (player == null || command.isBlank()) {
-            return ActionStatus.FAILURE;
-        }
-        if (player.getServer() == null) {
-            return ActionStatus.FAILURE;
-        }
         // Контекст игрока (для селектора @p), права level 4, без вывода в чат.
-        CommandSourceStack source = player.getServer().createCommandSourceStack()
-                .withEntity(player)
-                .withPosition(player.position())
-                .withLevel((ServerLevel) player.getLevel())
-                .withPermission(4)
-                .withSuppressedOutput();
-        player.getServer().getCommands().performPrefixedCommand(source, command);
-        return ActionStatus.SUCCESS;
+        int result = ActionCommands.runAsPlayer(context.player(), command);
+        return result >= 0 ? ActionStatus.SUCCESS : ActionStatus.FAILURE;
     }
 
     /** Фабрика для TriggerActionRegistry. */

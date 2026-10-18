@@ -23,5 +23,6 @@ public final class TriggerActions {
         TriggerActionRegistry.register("quest_advance", QuestAdvanceAction::of);
         TriggerActionRegistry.register("start_dialogue", StartDialogueAction::of);
         TriggerActionRegistry.register("run_command", RunCommandAction::of);
+        TriggerActionRegistry.register("start_script", StartScriptAction::of);
     }
 }

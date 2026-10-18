@@ -369,4 +369,37 @@ public final class TriggerManager {
         loadAll();
         return cache.containsKey(id);
     }
+
+    /**
+     * Создаёт/перезаписывает триггер из JSON-объекта (та же схема, что в файле
+     * {@code config/story_engine/triggers/<id>.json}) и перезагружает кэш.
+     * Используется прямым API {@code StoryApi.upsertTrigger}.
+     *
+     * <p>Валидация: поле {@code id} обязательно и может содержать только
+     * буквы/цифры/«_»/«-» (защита от путей вида {@code ../}). Остальные поля
+     * (event, target_tag, actions...) проверяет конфигуратор при перезагрузке —
+     * ошибки попадают в {@link #getLastErrors()}.
+     *
+     * @return {@code true} — файл записан и триггер активен в кэше
+     */
+    public boolean saveTrigger(JsonObject root) {
+        if (root == null || !root.has("id") || !root.get("id").isJsonPrimitive()) {
+            LOGGER.error("[StoryEngine] saveTrigger: нет обязательного строкового поля 'id'");
+            return false;
+        }
+        String id = root.get("id").getAsString();
+        if (id == null || !id.matches("[A-Za-z0-9_\\-]+")) {
+            LOGGER.error("[StoryEngine] saveTrigger: некорректный id '{}' (допустимы буквы, цифры, '_', '-')", id);
+            return false;
+        }
+        Path file = getTriggersDirectory().resolve(id + ".json");
+        try (Writer writer = Files.newBufferedWriter(file, StandardCharsets.UTF_8)) {
+            GSON.toJson(root, writer);
+        } catch (IOException e) {
+            LOGGER.error("[StoryEngine] Не удалось записать триггер {}", file, e);
+            return false;
+        }
+        loadAll();
+        return cache.containsKey(id);
+    }
 }
