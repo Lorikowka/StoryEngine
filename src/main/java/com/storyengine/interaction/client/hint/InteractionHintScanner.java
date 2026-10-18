@@ -41,6 +41,7 @@ public final class InteractionHintScanner {
     /** Период отправки C2SCrosshairPacket на сервер (для подсказок триггеров). */
     private static final int CROSSHAIR_INTERVAL_TICKS = 10;
     private static int scanCounter = 0;
+    private static int crosshairCounter = 0;
 
     private InteractionHintScanner() {
     }
@@ -64,7 +65,7 @@ public final class InteractionHintScanner {
     private static void tick(Minecraft mc) {
         InteractionHintState.clearAimed();
 
-        if (scanCounter++ % CROSSHAIR_INTERVAL_TICKS == 0) {
+        if (crosshairCounter++ % CROSSHAIR_INTERVAL_TICKS == 0) {
             sendCrosshairTarget(mc);
         }
 
