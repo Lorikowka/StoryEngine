@@ -41,10 +41,11 @@ public final class QuestNetworking {
 
     private static int packetId = 0;
     // Id на общем CHANNEL, тот же канал: NarrativeNetworking = 2, DialogueNetworking = 6-9 и 12,
-    // TriggerNetworking = 13 и 14. Свободны пока 10, 11. См. соответствующие классы.
+    // TriggerNetworking = 13 и 14. Свободны пока 11. См. соответствующие классы.
     private static final int TOAST_PACKET_ID = 4;
     private static final int MENU_RESET_PACKET_ID = 5;
     private static final int HINTS_TOGGLE_PACKET_ID = 3;
+    private static final int INTERACTION_BLOCKS_PACKET_ID = 10;
 
     /** Верхние границы для decode: защита от битых/зловредных пакетов (петли на миллионы итераций). */
     private static final int MAX_QUESTS = 4096;
@@ -59,6 +60,7 @@ public final class QuestNetworking {
         CHANNEL.registerMessage(TOAST_PACKET_ID, S2CQuestToastPacket.class, S2CQuestToastPacket::encode, S2CQuestToastPacket::decode, S2CQuestToastPacket::handle);
         CHANNEL.registerMessage(MENU_RESET_PACKET_ID, S2CMenuAssetsResetPacket.class, S2CMenuAssetsResetPacket::encode, S2CMenuAssetsResetPacket::decode, S2CMenuAssetsResetPacket::handle);
         CHANNEL.registerMessage(HINTS_TOGGLE_PACKET_ID, S2CInteractionHintsPacket.class, S2CInteractionHintsPacket::encode, S2CInteractionHintsPacket::decode, S2CInteractionHintsPacket::handle);
+        CHANNEL.registerMessage(INTERACTION_BLOCKS_PACKET_ID, S2CInteractionBlocksPacket.class, S2CInteractionBlocksPacket::encode, S2CInteractionBlocksPacket::decode, S2CInteractionBlocksPacket::handle);
     }
 
     /** Сброс кэша текстур меню на всех клиентах (после /storymenu reset|reload). */
@@ -87,6 +89,28 @@ public final class QuestNetworking {
 
     /** Последнее состояние, заданное скриптом через StoryApi (null — скрипт не менял). */
     private static Boolean lastInteractionHints = null;
+
+    /**
+     * Рассылка актуальных списков no_hints/no_interact из
+     * config/story_engine/interaction.json всем игрокам онлайн — после
+     * изменения списка из StoryApi. При каждом входе списки повторяются
+     * через {@link #syncInteractionBlockLists(ServerPlayer)}.
+     */
+    public static void sendInteractionBlockLists() {
+        CHANNEL.send(PacketDistributor.ALL.noArg(), new S2CInteractionBlocksPacket(
+                com.storyengine.interaction.InteractionBlockLists.noHintRaw(),
+                com.storyengine.interaction.InteractionBlockLists.noInteractRaw()));
+    }
+
+    /** Повторная отправка списков interaction.json вошедшему игроку. */
+    public static void syncInteractionBlockLists(ServerPlayer player) {
+        if (player == null) {
+            return;
+        }
+        CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), new S2CInteractionBlocksPacket(
+                com.storyengine.interaction.InteractionBlockLists.noHintRaw(),
+                com.storyengine.interaction.InteractionBlockLists.noInteractRaw()));
+    }
 
     public static void sendQuestStatusMessage(ServerPlayer player, String text) {
         if (player == null || player.level.isClientSide || text == null || text.isBlank()) {
@@ -459,6 +483,60 @@ public final class QuestNetworking {
             context.enqueueWork(() -> {
                 if (context.getDirection() == NetworkDirection.PLAY_TO_CLIENT) {
                     MenuCustomizationConfig.INTERACTION_HINT_ENABLED.set(packet.enabled);
+                }
+            });
+            context.setPacketHandled(true);
+        }
+    }
+
+    /**
+     * S2C-пакет списков no_hints/no_interact из
+     * config/story_engine/interaction.json (StoryApi.addNoHintBlock/...).
+     * Клиент применяет списки в InteractionBlockLists: сканер подсказок
+     * пропускает блоки из no_hints. Отправляется при входе игрока и после
+     * каждого изменения списка на сервере.
+     */
+    public static final class S2CInteractionBlocksPacket {
+        private static final int MAX_ENTRIES = 1024;
+
+        private final List<String> noHints;
+        private final List<String> noInteract;
+
+        public S2CInteractionBlocksPacket(List<String> noHints, List<String> noInteract) {
+            this.noHints = noHints == null ? List.of() : noHints;
+            this.noInteract = noInteract == null ? List.of() : noInteract;
+        }
+
+        public static void encode(S2CInteractionBlocksPacket packet, FriendlyByteBuf buffer) {
+            buffer.writeVarInt(packet.noHints.size());
+            for (String entry : packet.noHints) {
+                buffer.writeUtf(entry);
+            }
+            buffer.writeVarInt(packet.noInteract.size());
+            for (String entry : packet.noInteract) {
+                buffer.writeUtf(entry);
+            }
+        }
+
+        public static S2CInteractionBlocksPacket decode(FriendlyByteBuf buffer) {
+            int hintCount = Math.min(Math.max(buffer.readVarInt(), 0), MAX_ENTRIES);
+            List<String> hints = new ArrayList<>(hintCount);
+            for (int i = 0; i < hintCount; i++) {
+                hints.add(buffer.readUtf());
+            }
+            int interactCount = Math.min(Math.max(buffer.readVarInt(), 0), MAX_ENTRIES);
+            List<String> interact = new ArrayList<>(interactCount);
+            for (int i = 0; i < interactCount; i++) {
+                interact.add(buffer.readUtf());
+            }
+            return new S2CInteractionBlocksPacket(hints, interact);
+        }
+
+        public static void handle(S2CInteractionBlocksPacket packet, Supplier<net.minecraftforge.network.NetworkEvent.Context> contextSupplier) {
+            net.minecraftforge.network.NetworkEvent.Context context = contextSupplier.get();
+            context.enqueueWork(() -> {
+                if (context.getDirection() == NetworkDirection.PLAY_TO_CLIENT) {
+                    com.storyengine.interaction.InteractionBlockLists.applyClient(packet.noHints, packet.noInteract);
                 }
             });
             context.setPacketHandled(true);

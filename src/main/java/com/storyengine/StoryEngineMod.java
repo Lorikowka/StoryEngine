@@ -3,6 +3,7 @@ package com.storyengine;
 import com.mojang.logging.LogUtils;
 import com.storyengine.client.MenuCustomizationConfig;
 import com.storyengine.dialogue.DialogueManager;
+import com.storyengine.interaction.InteractionBlockLists;
 import com.storyengine.network.NarrativeNetworking;
 import com.storyengine.network.QuestNetworking;
 import com.storyengine.network.dialogue.DialogueNetworking;
@@ -68,6 +69,8 @@ public class StoryEngineMod {
         DIALOGUE_MANAGER.getDialoguesDirectory();
         LOGGER.info("[StoryEngine] Загрузка триггеров из config/story_engine/triggers/ ...");
         TRIGGER_MANAGER.loadAll();
+        LOGGER.info("[StoryEngine] Загрузка списков блоков config/story_engine/interaction.json ...");
+        InteractionBlockLists.load();
     }
 
     @SubscribeEvent

@@ -28,6 +28,7 @@ public final class QuestCapabilities {
         if (event.getEntity() instanceof ServerPlayer serverPlayer) {
             QuestNetworking.syncToPlayer(serverPlayer);
             QuestNetworking.syncInteractionHints(serverPlayer);
+            QuestNetworking.syncInteractionBlockLists(serverPlayer);
         }
     }
 

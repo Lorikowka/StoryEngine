@@ -78,7 +78,9 @@ public final class InteractionHintScanner {
                 if (action == null && state.getMenuProvider(mc.level, pos) != null) {
                     action = VanillaActionResolver.USE;
                 }
-                if (action != null) {
+                // no_hints из config/story_engine/interaction.json — подсказка не показывается
+                if (action != null && !com.storyengine.interaction.InteractionBlockLists
+                        .isNoHint(state.getBlock(), pos)) {
                     InteractionHintState.setAimed(action, getTargetCenter(mc, pos, state));
                 }
             } else if (hit.getType() == HitResult.Type.ENTITY) {
@@ -142,6 +144,10 @@ public final class InteractionHintScanner {
                     boolean interactable = VanillaActionResolver.getBlockAction(state.getBlock()) != null
                             || state.getMenuProvider(mc.level, pos) != null;
                     if (!interactable) {
+                        continue;
+                    }
+                    // no_hints из config/story_engine/interaction.json — блок не попадает в близкие цели
+                    if (com.storyengine.interaction.InteractionBlockLists.isNoHint(state.getBlock(), pos)) {
                         continue;
                     }
                     if (state.getBlock() instanceof DoorBlock) {

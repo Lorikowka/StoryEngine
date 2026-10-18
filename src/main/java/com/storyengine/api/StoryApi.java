@@ -3,6 +3,7 @@ package com.storyengine.api;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 import com.storyengine.StoryEngineMod;
+import com.storyengine.interaction.InteractionBlockLists;
 import com.storyengine.narrative.NarrativeMessage;
 import com.storyengine.narrative.NarrativeStyle;
 import com.storyengine.network.NarrativeNetworking;
@@ -365,6 +366,65 @@ public final class StoryApi {
      */
     public static void setInteractionHintsEnabled(boolean enabled) {
         QuestNetworking.sendInteractionHints(enabled);
+    }
+
+    // ==================================================================
+    //  Списки блоков interaction.json (v1.2.6)
+    // ==================================================================
+
+    /**
+     * Добавить <b>все блоки данного id</b> в список {@code no_hints} файла
+     * {@code config/story_engine/interaction.json}: подсказка при наведении
+     * на такие блоки не показывается (и в близкие цели они не попадают).
+     * Файл сохраняется, списки рассылаются клиентам немедленно.
+     *
+     * <p>Записи с конкретной позицией (один блок) правятся только в самом
+     * файле + {@link #reloadInteractionConfig()}.
+     *
+     * @param blockId id блока; допускается сокращение без неймспейса
+     *                ({@code "chest"} = {@code "minecraft:chest"})
+     * @return {@code false} — некорректный id или запись уже есть
+     */
+    public static boolean addNoHintBlock(String blockId) {
+        return InteractionBlockLists.addNoHint(blockId);
+    }
+
+    /**
+     * Убрать из {@code no_hints} <b>все</b> записи данного id — и типовые
+     * ({@code minecraft:chest}), и позиционные ({@code minecraft:chest 1 2 3}).
+     *
+     * @return {@code false} — некорректный id или записей не было
+     */
+    public static boolean removeNoHintBlock(String blockId) {
+        return InteractionBlockLists.removeNoHint(blockId);
+    }
+
+    /**
+     * Добавить <b>все блоки данного id</b> в список {@code no_interact}:
+     * сервер отменяет ПКМ/F на таких блоках — взаимодействия не происходит.
+     *
+     * @return {@code false} — некорректный id или запись уже есть
+     */
+    public static boolean addNoInteractBlock(String blockId) {
+        return InteractionBlockLists.addNoInteract(blockId);
+    }
+
+    /**
+     * Убрать из {@code no_interact} <b>все</b> записи данного id — и типовые,
+     * и позиционные.
+     *
+     * @return {@code false} — некорректный id или записей не было
+     */
+    public static boolean removeNoInteractBlock(String blockId) {
+        return InteractionBlockLists.removeNoInteract(blockId);
+    }
+
+    /**
+     * Перечитать {@code config/story_engine/interaction.json} с диска
+     * (например, после ручной правки файла) и разослать списки клиентам.
+     */
+    public static void reloadInteractionConfig() {
+        InteractionBlockLists.reload();
     }
 
     // ==================================================================
